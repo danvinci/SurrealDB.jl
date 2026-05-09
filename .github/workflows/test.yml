@@ -34,7 +34,7 @@ jobs:
       fail-fast: false
       matrix:
         surreal-image:
-          - surrealdb/surrealdb:v2-latest
+          - surrealdb/surrealdb:v2
           - surrealdb/surrealdb:latest
     steps:
       - uses: actions/checkout@v4
