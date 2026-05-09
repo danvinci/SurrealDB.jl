@@ -52,12 +52,6 @@ Base.show(io::IO, t::Table) = print(io, "Table(\"$(t.name)\")")
 
 # --- SurrealValue ---
 
-"""
-    SurrealValue(kind, value)
-
-A tagged union representing any SurrealDB value type.
-Used internally for precision type handling when mapping to/from C FFI types.
-"""
 @enum SurrealValueKind begin
     SR_NONE
     SR_NULL
@@ -76,6 +70,15 @@ Used internally for precision type handling when mapping to/from C FFI types.
     SR_GEOMETRY
 end
 
+"""
+    SurrealValue(kind::SurrealValueKind, value)
+
+A tagged union representing any SurrealDB value type. Used internally for
+precision type handling when mapping to/from C FFI types in embedded mode.
+
+Most users never construct one directly — `query` / `select` / etc. handle
+the conversions automatically.
+"""
 struct SurrealValue
     kind::SurrealValueKind
     value::Any

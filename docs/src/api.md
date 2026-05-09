@@ -12,6 +12,8 @@ SurrealDB.events
 SurrealDB.SurrealClient
 SurrealDB.AbstractConnection
 SurrealDB.RemoteConnection
+SurrealDB.RemoteWSConnection
+SurrealDB.RemoteHTTPConnection
 SurrealDB.EmbeddedConnection
 ```
 
@@ -98,6 +100,7 @@ SurrealDB.libsurreal_load!
 ```@docs
 SurrealDB.to_table
 SurrealDB.to_metagraph
+SurrealDB.QueryResultTable
 ```
 
 ## Core types

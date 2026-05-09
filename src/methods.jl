@@ -342,14 +342,33 @@ function patch(client::SurrealClient{C}, what, patches) where {C<:AbstractConnec
     return _rpc_call(client, "patch", Any[_to_string(what), patches, true])
 end
 
+"""
+    patch_add(client, what, path::String, value)
+
+Convenience wrapper around [`patch`](@ref) that issues a single
+JSON-Patch `add` operation at `path`. `what` is a table name, [`Table`](@ref),
+or [`RecordID`](@ref).
+"""
 function patch_add(client::SurrealClient{C}, what, path::String, value) where {C<:AbstractConnection}
     return patch(client, what, [Dict("op" => "add", "path" => path, "value" => value)])
 end
 
+"""
+    patch_remove(client, what, path::String)
+
+Convenience wrapper around [`patch`](@ref) that issues a single
+JSON-Patch `remove` operation at `path`.
+"""
 function patch_remove(client::SurrealClient{C}, what, path::String) where {C<:AbstractConnection}
     return patch(client, what, [Dict("op" => "remove", "path" => path)])
 end
 
+"""
+    patch_replace(client, what, path::String, value)
+
+Convenience wrapper around [`patch`](@ref) that issues a single
+JSON-Patch `replace` operation at `path`.
+"""
 function patch_replace(client::SurrealClient{C}, what, path::String, value) where {C<:AbstractConnection}
     return patch(client, what, [Dict("op" => "replace", "path" => path, "value" => value)])
 end

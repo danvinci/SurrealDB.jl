@@ -21,9 +21,5 @@ using Test
         # `ambiguities` is noisy with the Tables.jl + Dict integration
         # and most flags are spurious. Enable narrowly when we audit them.
         ambiguities = false,
-        # Pkg extensions confuse Aqua's piracy detection across the
-        # Pkg-extension boundary (Graphs / MetaGraphsNext methods registered
-        # via the extension look like piracy). Disable for now.
-        piracies = false,
     )
 end

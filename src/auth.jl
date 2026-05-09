@@ -2,35 +2,6 @@
 
 # --- Sign in ---
 
-"""
-    signin!(client, auth)
-
-Authenticate with the SurrealDB server.
-
-`auth` can be:
-- [`RootAuth`](@ref) — root-level credentials
-- [`NamespaceAuth`](@ref) — namespace-level credentials
-- [`ScopedAuth`](@ref) — record-level credentials via an access method
-- `Dict{String, Any}` — raw parameters (e.g., for bearer keys, refresh tokens)
-
-Returns the JWT token string on success.
-
-# Examples
-```julia
-# Root auth
-token = SurrealDB.signin!(db, SurrealDB.RootAuth("root", "password"))
-
-# Namespace-level
-token = SurrealDB.signin!(db, SurrealDB.NamespaceAuth("ns", "db", "user", "pass"))
-
-# Scoped
-token = SurrealDB.signin!(db, SurrealDB.ScopedAuth("ns", "db", "access", "user", "pass"))
-
-# Raw params (bearer key, refresh tokens, etc.)
-token = SurrealDB.signin!(db, Dict("NS" => "ns", "DB" => "db", "AC" => "access",
-                                    "user" => "u", "pass" => "p"))
-```
-"""
 # Single core impl; typed overloads convert to params via `_to_params`.
 function _signin_impl!(client::SurrealClient, params)
     result = _rpc_call(client, "signin", Any[params])
@@ -39,6 +10,33 @@ function _signin_impl!(client::SurrealClient, params)
     return token
 end
 
+"""
+    signin!(client, auth) -> token::String
+
+Authenticate with the SurrealDB server.
+
+`auth` can be:
+- [`RootAuth`](@ref) - root-level credentials
+- [`NamespaceAuth`](@ref) - namespace-level credentials
+- [`ScopedAuth`](@ref) - record-level credentials via an access method
+- `Dict{String, Any}` - raw parameters (e.g., for bearer keys, refresh tokens)
+
+Returns the JWT token string on success. The SDK stores the token on the
+client so subsequent RPCs are authenticated automatically; the token is
+also replayed on reconnect.
+
+# Examples
+```julia
+token = SurrealDB.signin!(db, SurrealDB.RootAuth("root", "password"))
+
+token = SurrealDB.signin!(db, SurrealDB.NamespaceAuth("ns", "db", "user", "pass"))
+
+token = SurrealDB.signin!(db, SurrealDB.ScopedAuth("ns", "db", "access", "user", "pass"))
+
+token = SurrealDB.signin!(db, Dict("NS" => "ns", "DB" => "db", "AC" => "access",
+                                    "user" => "u", "pass" => "p"))
+```
+"""
 function signin!(client::SurrealClient{C}, auth::RootAuth) where {C<:AbstractConnection}
     return _signin_impl!(client, _to_params(auth))
 end

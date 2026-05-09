@@ -1135,7 +1135,21 @@ end
 
 end # module LibSurreal
 
-# Convenience export
+"""
+    libsurreal_load!(path::String="")
+
+Load the `libsurreal` shared library at `path` for embedded mode. When
+`path` is empty, falls back to the `SURREALDB_LIB` environment variable.
+
+Must be called before `connect("mem://")` or `connect("surrealkv://...")`.
+Remote connections (`ws://`, `http://`) don't need this.
+
+# Examples
+```julia
+SurrealDB.libsurreal_load!("/path/to/libsurrealdb_c.dylib")
+db = SurrealDB.connect("mem://")
+```
+"""
 function libsurreal_load!(path::String="")
     LibSurreal.load!(path)
     return nothing
