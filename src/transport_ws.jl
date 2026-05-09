@@ -34,7 +34,12 @@ function _ws_reconnect_loop(conn::RemoteWSConnection)
         attempt += 1
 
         try
-            WebSockets.open(conn.url) do ws
+            # `require_ssl_verification` propagates to HTTP.jl's TLS layer
+            # via WebSockets.open's kwargs forwarding. Defaults to verify on;
+            # tests with self-signed certs flip it via the `tls_verify`
+            # connect kwarg.
+            WebSockets.open(conn.url;
+                            require_ssl_verification = conn.tls_verify) do ws
                 conn.ws = ws
                 attempt = 0           # consecutive-failure counter resets
                 ever_connected = true
@@ -63,6 +68,13 @@ function _ws_reconnect_loop(conn::RemoteWSConnection)
 
                 # Wait for the reader to exit (socket closed by either end).
                 try; wait(reader); catch; end
+
+                # Socket has closed. Any RPCs that were waiting on a
+                # response (still in `response_channels`) will hang
+                # forever otherwise — push a synthetic transport error
+                # so each `take!` wakes up and the caller sees a typed
+                # ConnectionError instead of a deadlock.
+                _signal_inflight_disconnect!(conn)
 
                 _stop_pinger!(conn)
                 try; close(conn.write_channel); catch; end
@@ -212,6 +224,31 @@ function _ws_reader_task(conn::RemoteWSConnection)
             @debug "SurrealDB ws notification ←"
             _dispatch_notification(conn, msg)
         end
+    end
+end
+
+# Wake every blocked `take!(response_channels[rid])` with a synthetic
+# transport error. Used on socket drop (transient OR terminal) so in-flight
+# RPCs fail-fast with a typed `ConnectionError` instead of hanging until
+# the OS times the underlying socket out — or forever, if the SDK
+# reconnects to a different session that never delivers the original rid.
+#
+# Distinct from `_teardown_channels!` because that one also closes
+# notification channels and empties dicts; this just unblocks pending
+# requests so `_rpc_call`'s `take!` returns and its `if haskey(response,
+# "error")` arm raises.
+function _signal_inflight_disconnect!(conn::RemoteWSConnection)
+    lock(conn.lock) do
+        for ch in values(conn.response_channels)
+            if isopen(ch)
+                try
+                    put!(ch, Dict("error" => Dict("code" => -1,
+                        "message" => "Connection lost mid-request")))
+                catch
+                end
+            end
+        end
+        empty!(conn.response_channels)
     end
 end
 

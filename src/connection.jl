@@ -94,6 +94,8 @@ Base.@kwdef mutable struct RemoteConnection{P} <: AbstractRemoteConnection
     events::Channel{Symbol} = Channel{Symbol}(64)
     "Last exception observed by the reconnect loop. Used to surface a meaningful cause when `connect()` times out instead of a bare \"Failed to connect\" string."
     last_error::Union{Exception, Nothing} = nothing
+    "Whether to verify TLS certificates on `wss://` connections. Default `true`. Set to `false` for self-signed certs in test/CI environments — never disable in production."
+    tls_verify::Bool = true
 end
 
 # Concrete protocol-tagged types. Methods that only apply to one transport
@@ -327,7 +329,8 @@ function connect(url::String;
                  reconnect_base_delay::Float64=0.5,
                  reconnect_max_delay::Float64=30.0,
                  reconnect_jitter::Float64=0.1,
-                 ping_interval::Float64=30.0)
+                 ping_interval::Float64=30.0,
+                 tls_verify::Bool=true)
     scheme = _parse_scheme(url)
 
     if scheme in (:ws, :wss, :http, :https)
@@ -352,7 +355,8 @@ function connect(url::String;
                                  reconnect_base_delay=reconnect_base_delay,
                                  reconnect_max_delay=reconnect_max_delay,
                                  reconnect_jitter=reconnect_jitter,
-                                 ping_interval=ping_interval) :
+                                 ping_interval=ping_interval,
+                                 tls_verify=tls_verify) :
             RemoteWSConnection(url=ws_url,
                                http_base_url=http_base,
                                response_channels=Dict{Int, Channel}(),
@@ -363,7 +367,8 @@ function connect(url::String;
                                reconnect_base_delay=reconnect_base_delay,
                                reconnect_max_delay=reconnect_max_delay,
                                reconnect_jitter=reconnect_jitter,
-                               ping_interval=ping_interval)
+                               ping_interval=ping_interval,
+                               tls_verify=tls_verify)
         _connect_remote!(conn)
         # Wait briefly for WS to establish connection (HTTP is instant)
         if is_ws

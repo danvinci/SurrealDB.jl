@@ -1,0 +1,67 @@
+name: TLS
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  wss:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: '1'
+      - uses: julia-actions/cache@v2
+      - uses: julia-actions/julia-buildpkg@v1
+
+      # Self-signed cert valid for localhost. The SDK is configured with
+      # tls_verify=false to accept the self-signed CA — this is exactly
+      # the toggle that production users would NEVER set, exercised here
+      # so we can confirm the wss:// path itself works end-to-end.
+      - name: Generate self-signed cert
+        run: |
+          openssl req -x509 -newkey rsa:2048 -nodes -keyout key.pem -out cert.pem \
+            -days 1 -subj "/CN=localhost" \
+            -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
+
+      - name: Start SurrealDB with TLS
+        run: |
+          docker run -d -p 8443:8443 \
+            --name surrealdb-tls \
+            -v $PWD/cert.pem:/cert.pem \
+            -v $PWD/key.pem:/key.pem \
+            surrealdb/surrealdb:latest \
+            start --user root --pass root \
+            --bind 0.0.0.0:8443 \
+            --web-crt /cert.pem --web-key /key.pem \
+            memory
+
+      - name: Wait for SurrealDB TLS port
+        run: |
+          for i in $(seq 1 30); do
+            curl -sk -X POST https://localhost:8443/rpc \
+              -H "Content-Type: application/json" \
+              -d '{"id":1,"method":"version","params":[]}' && break
+            sleep 1
+          done
+
+      # Verify the SDK actually completes a TLS handshake end-to-end. Just
+      # connecting + running a query is enough to prove wss:// works.
+      - name: Connect via wss:// and run a query
+        run: |
+          julia --project=test -e '
+            using SurrealDB
+            db = SurrealDB.connect("wss://localhost:8443";
+                ns="test", db="test",
+                auth=SurrealDB.RootAuth("root", "root"),
+                tls_verify=false)
+            r = SurrealDB.query(db, "SELECT * FROM 1")
+            @info "wss:// roundtrip ok" result=r
+            SurrealDB.close!(db)
+          '
+
+      - name: Docker logs (on failure)
+        if: failure()
+        run: docker logs surrealdb-tls

@@ -78,6 +78,11 @@ SERVER_AVAILABLE || @info "Skipping server-dependent tests — no SurrealDB at $
         include("test_reconnect_integration.jl")
     end
 
+    # Concurrent-load resilience under socket drop. Hermetic via mock WS.
+    @testset "Load resilience" begin
+        include("test_load_resilience.jl")
+    end
+
     # --- Server-dependent testsets (gated on SERVER_AVAILABLE) ---
 
     if SERVER_AVAILABLE
@@ -108,6 +113,9 @@ SERVER_AVAILABLE || @info "Skipping server-dependent tests — no SurrealDB at $
         end
         @testset "Type round-trip" begin
             include("test_type_roundtrip.jl")
+        end
+        @testset "JWT expiry" begin
+            include("test_jwt_expiry.jl")
         end
     end
 
