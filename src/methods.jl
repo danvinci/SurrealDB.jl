@@ -1,12 +1,15 @@
 # Data manipulation methods for SurrealDB.jl
 # Each method sends an RPC to the server via _rpc_call
 
-# Internal representation of a single query statement result
+# Internal representation of a single query statement result.
+# `error` widened to ServerError post-D1: _parse_query_error dispatches on
+# the wire `kind` field and may return any kind-tagged subclass
+# (NotFoundError, AlreadyExistsError, ValidationError, etc.), not just QueryError.
 struct _QueryResult
     status::String   # "OK" or "ERR"
     time::String     # execution time string
     result::Any      # the actual query result data
-    error::Union{QueryError, Nothing}
+    error::Union{ServerError, Nothing}
 end
 
 """

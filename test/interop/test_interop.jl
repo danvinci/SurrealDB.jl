@@ -58,8 +58,20 @@ function run_interop_tests()
     @testset "$(kind)" for (kind, expected) in EXPECTED
         @test haskey(by_kind, kind)
         if haskey(by_kind, kind)
-            actual = _normalize(by_kind[kind]["value"])
-            @test actual == expected
+            row = by_kind[kind]
+            # Cross-SDK semantics: SurrealDB drops null fields on storage,
+            # so a value Python wrote as None comes back as a missing key.
+            # `expected === nothing` is the documented "key may be absent"
+            # case; everything else asserts present + equal.
+            if expected === nothing
+                v = haskey(row, "value") ? _normalize(row["value"]) : nothing
+                @test v === nothing
+            else
+                @test haskey(row, "value")
+                if haskey(row, "value")
+                    @test _normalize(row["value"]) == expected
+                end
+            end
         end
     end
 
