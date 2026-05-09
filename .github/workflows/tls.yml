@@ -15,6 +15,8 @@ jobs:
           version: '1'
       - uses: julia-actions/cache@v2
       - uses: julia-actions/julia-buildpkg@v1
+      - name: Instantiate test env
+        run: julia --project=test -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate()'
 
       # Self-signed cert valid for localhost. The SDK is configured with
       # tls_verify=false to accept the self-signed CA — this is exactly

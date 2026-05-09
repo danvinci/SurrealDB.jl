@@ -13,16 +13,19 @@
 # regression gate (`@test isempty(JET.get_reports(...))`).
 
 using SurrealDB
-using JET
 using Test
 
+# JET dropped Julia 1.9 support in recent releases (StepExpr! ambiguity
+# from JuliaInterpreter). Skip the type-stability check on the LTS
+# matrix entry — current-stable still gets the gate.
 @testset "JET package report (advisory)" begin
-    # report_package walks the entire package; uses the
-    # `concretization_patterns` default which expands constants.
-    result = JET.report_package(SurrealDB; toplevel_logger=nothing)
-    n = length(JET.get_reports(result))
-    @info "JET reports" count=n
-    # Smoke: JET ran without erroring out. The count check is intentionally
-    # generous; tighten when the codebase is more type-stable.
-    @test n < 200
+    if VERSION < v"1.10"
+        @info "skip: JET requires Julia ≥ 1.10"
+    else
+        @eval using JET
+        result = JET.report_package(SurrealDB; toplevel_logger=nothing)
+        n = length(JET.get_reports(result))
+        @info "JET reports" count=n
+        @test n < 200
+    end
 end
