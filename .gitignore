@@ -6,6 +6,10 @@ libsurrealdb_c.dll
 *.dylib
 *.dll
 
+# Library packages don't commit Manifest — would lock users to our
+# transitive deps. Project.toml is the public contract.
+Manifest.toml
+
 # Local editor / agent state
 .claude/
 
