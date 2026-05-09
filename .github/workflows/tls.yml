@@ -27,6 +27,10 @@ jobs:
           openssl req -x509 -newkey rsa:2048 -nodes -keyout key.pem -out cert.pem \
             -days 1 -subj "/CN=localhost" \
             -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
+          # surrealdb container runs as a non-root user; the bind-mounted
+          # cert files inherit the host's file mode, so we need them
+          # world-readable for the container to load them.
+          chmod 0644 cert.pem key.pem
 
       - name: Start SurrealDB with TLS
         run: |

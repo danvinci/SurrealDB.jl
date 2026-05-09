@@ -87,19 +87,22 @@ jobs:
         run: julia --project=test -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate()'
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
-      - name: Cache cargo build
+      # Cache only cargo's own dirs, NOT /tmp/surrealdb.c/target — the
+      # latter caused build failures when the cache restored the target
+      # directory without the source tree, defeating the `if [ ! -d ]`
+      # guard. Cargo's own build cache is enough.
+      - name: Cache cargo registries
         uses: actions/cache@v4
         with:
           path: |
-            /tmp/surrealdb.c/target
             ~/.cargo/registry
             ~/.cargo/git
-          key: cargo-libsurreal-${{ runner.os }}
+          key: cargo-registry-${{ runner.os }}
       - name: Build libsurreal
         run: |
-          if [ ! -d /tmp/surrealdb.c ]; then
-            git clone https://github.com/surrealdb/surrealdb.c.git --depth 1 /tmp/surrealdb.c
-          fi
+          # Always re-clone to a deterministic state (--depth 1 is cheap).
+          rm -rf /tmp/surrealdb.c
+          git clone https://github.com/surrealdb/surrealdb.c.git --depth 1 /tmp/surrealdb.c
           cd /tmp/surrealdb.c
           cargo build --release
           # Each platform produces a different filename; copy whichever exists.
