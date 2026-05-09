@@ -226,6 +226,13 @@ function _close_remote!(conn::RemoteConnection)
         return nothing
     end
     _stop_pinger!(conn)
+    # Force the underlying WS to close NOW so the reader's `read` returns
+    # EOF immediately. Without this, the writer's "" sentinel exits the
+    # writer task but the reader can stay blocked on `read(ws)` until the
+    # server-side timeout fires — hundreds of seconds in the worst case.
+    if conn.ws !== nothing
+        try; close(conn.ws); catch; end
+    end
     try
         put!(conn.write_channel, "")
     catch
@@ -234,6 +241,21 @@ function _close_remote!(conn::RemoteConnection)
         close(conn.write_channel)
     catch
     end
+    # Wait for the reconnect-loop task to fully unwind so each call to
+    # `close!` drains the background tasks before returning. Without this
+    # wait, rapid sequential `connect → close → connect` cycles (the
+    # pattern in the test suite) accumulate dangling reader tasks holding
+    # references to dead sockets, eventually choking the WebSockets/HTTP
+    # connection pool. Bound the wait so a misbehaving task never hangs
+    # `close!` permanently.
+    rt = conn.reader_task
+    if rt !== nothing && !istaskdone(rt)
+        deadline = time() + 2.0
+        while !istaskdone(rt) && time() < deadline
+            sleep(0.02)
+        end
+    end
+    conn.reader_task = nothing
     conn.ws = nothing
     return nothing
 end
