@@ -34,11 +34,24 @@ jobs:
               -d '{"id":1,"method":"version","params":[]}' && break
             sleep 1
           done
-      - name: Write fixtures from Python
+      # Forward: Python writes, Julia reads.
+      - name: Forward — Python writes fixtures
         run: python test/interop/write_test_data.py
         env:
           SURREALDB_URL: ws://localhost:8000/rpc
-      - name: Read fixtures from Julia, assert equality
-        run: julia --project=. -e 'include("test/interop/test_interop.jl")'
+      - name: Forward — Julia reads, asserts equal
+        run: julia --project=test -e 'include("test/interop/test_interop.jl")'
         env:
           SURREALDB_URL: ws://localhost:8000
+
+      # Reverse: Julia writes, Python reads. Same fixtures, different
+      # direction — catches serialization drift in our writer that the
+      # forward direction can't see.
+      - name: Reverse — Julia writes fixtures
+        run: julia --project=test test/interop/write_test_data_julia.jl
+        env:
+          SURREALDB_URL: ws://localhost:8000
+      - name: Reverse — Python reads, asserts equal
+        run: python test/interop/read_test_data.py
+        env:
+          SURREALDB_URL: ws://localhost:8000/rpc

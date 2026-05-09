@@ -106,6 +106,9 @@ SERVER_AVAILABLE || @info "Skipping server-dependent tests — no SurrealDB at $
         @testset "Go SDK Conformance" begin
             include("test_go_conformance.jl")
         end
+        @testset "Type round-trip" begin
+            include("test_type_roundtrip.jl")
+        end
     end
 
     # --- Embedded (requires libsurreal) ---
