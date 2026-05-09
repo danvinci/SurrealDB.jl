@@ -14,6 +14,7 @@ jobs:
         with:
           version: '1'
       - uses: julia-actions/cache@v2
+      - uses: julia-actions/julia-buildpkg@v1
       - name: Start SurrealDB
         run: |
           docker run -d -p 8000:8000 \

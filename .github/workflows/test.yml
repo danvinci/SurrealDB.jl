@@ -42,6 +42,7 @@ jobs:
         with:
           version: '1'
       - uses: julia-actions/cache@v2
+      - uses: julia-actions/julia-buildpkg@v1
       - name: Start SurrealDB (${{ matrix.surreal-image }})
         run: |
           docker run -d -p 8000:8000 \
@@ -79,6 +80,7 @@ jobs:
         with:
           version: '1'
       - uses: julia-actions/cache@v2
+      - uses: julia-actions/julia-buildpkg@v1
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
       - name: Cache cargo build
