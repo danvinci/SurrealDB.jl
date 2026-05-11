@@ -8,12 +8,17 @@ for tbl in ["test_live", "test_live_notif", "test_live_upd", "test_live_del", "t
 end
 
 @testset "Live subscription creation" begin
+    println(stderr, "[live-sub] clean_table!..."); flush(stderr)
     clean_table!(client, "test_live")
+    println(stderr, "[live-sub] live()..."); flush(stderr)
     sub = SurrealDB.live(client, "test_live")
+    println(stderr, "[live-sub] live returned, asserting..."); flush(stderr)
     @test sub isa SurrealDB.LiveSubscription
     @test sub.active
     @test sub.channel isa Channel
+    println(stderr, "[live-sub] kill!..."); flush(stderr)
     SurrealDB.kill!(sub)
+    println(stderr, "[live-sub] kill ok"); flush(stderr)
     @test !sub.active
 end
 
