@@ -65,9 +65,9 @@ jobs:
         run: julia --project=test test/runtests.jl
         env:
           SURREALDB_URL: ws://localhost:8000
-      - name: Docker logs (on failure)
-        if: failure()
-        run: docker logs surrealdb
+      - name: Docker logs (always — needed on cancellation too)
+        if: always()
+        run: docker logs surrealdb 2>&1 | tail -200
 
   # Embedded matrix: linux x86_64 (glibc) and macos arm64 (libSystem).
   # The s2 audit hit an ARM64-only `sr_object_keys` FFI bug — having
