@@ -1,5 +1,20 @@
 client = get_test_client()
 
+# Bounded wait on a notification channel. Returns the notification or `nothing`
+# on timeout. The previous `for n in sub.channel; break; end` pattern blocks
+# `take!` indefinitely — a missed/misrouted notification hangs the entire suite
+# rather than failing the single testset.
+function _await_notification(ch::Channel; timeout_s::Real=5.0, step_s::Real=0.05)
+    deadline = time() + timeout_s
+    while time() < deadline
+        if isready(ch)
+            return take!(ch)
+        end
+        sleep(step_s)
+    end
+    return nothing
+end
+
 # Bootstrap: create tables for live queries (v3 requires existing tables)
 for tbl in ["test_live", "test_live_notif", "test_live_upd", "test_live_del", "test_live_a", "test_live_b", "test_live_dc"]
     println(stderr, "[bootstrap] create $tbl"); flush(stderr)
@@ -51,12 +66,8 @@ println(stderr, "[testset] Live notification on create"); flush(stderr)
         SurrealDB.create(client, "test_live_notif", Dict("event" => "lived"))
     end
     println(stderr, "[notif-create] awaiting notification..."); flush(stderr)
-    notif = nothing
-    for n in sub.channel
-        notif = n
-        break
-    end
-    println(stderr, "[notif-create] got notification"); flush(stderr)
+    notif = _await_notification(sub.channel)
+    println(stderr, "[notif-create] notif=$(notif === nothing ? "TIMEOUT" : "ok")"); flush(stderr)
     @test notif !== nothing
     @test notif isa AbstractDict
     @test get(notif, "action", "") in ["CREATE", "UPDATE", "DELETE"]
@@ -73,11 +84,7 @@ println(stderr, "[testset] Live notification on update"); flush(stderr)
         sleep(0.3)
         SurrealDB.update(client, "test_live_upd:watch", Dict("val" => 2))
     end
-    notif = nothing
-    for n in sub.channel
-        notif = n
-        break
-    end
+    notif = _await_notification(sub.channel)
     @test notif !== nothing
     @test notif isa AbstractDict
     SurrealDB.kill!(sub)
@@ -93,11 +100,7 @@ println(stderr, "[testset] Live notification on delete"); flush(stderr)
         sleep(0.3)
         SurrealDB.delete(client, "test_live_del:bye")
     end
-    notif = nothing
-    for n in sub.channel
-        notif = n
-        break
-    end
+    notif = _await_notification(sub.channel)
     @test notif !== nothing
     @test notif isa AbstractDict
     SurrealDB.kill!(sub)
