@@ -211,8 +211,13 @@ function _ws_reader_task(conn::RemoteWSConnection)
         end
         isempty(data) && continue
 
+        # `String(::Vector{UInt8})` MOVES the bytes — `data` is empty after the
+        # call, so we must materialize once and reuse for both JSON.parse and
+        # diagnostic logging.
+        raw = String(data)
+
         msg = try
-            JSON.parse(String(data))
+            JSON.parse(raw)
         catch
             continue
         end
@@ -234,7 +239,7 @@ function _ws_reader_task(conn::RemoteWSConnection)
             # "notify"-method push. v3 may use a different envelope shape; if
             # so the live-notification testsets will fail and this line tells
             # us what the actual frame looks like.
-            println(stderr, "[ws unrecognized] $(first(String(data), 300))")
+            println(stderr, "[ws unrecognized] $(first(raw, 300))")
             flush(stderr)
         end
     end
