@@ -472,14 +472,36 @@ function _rpc_call_ws(client::SurrealClient{<:RemoteWSConnection}, method::Strin
             throw(ConnectionError("Failed to send RPC: $e", e))
         end
 
-        response = try
-            take!(ch)
-        catch e
-            if e isa InvalidStateException && attempt < max_retries
-                sleep(0.5)
+        # Bounded wait for response. Without this, a request that reaches the
+        # server but never gets a reply (server bug, malformed response that
+        # fails id-routing, etc.) deadlocks the caller indefinitely.
+        response = nothing
+        retry_after = false
+        deadline = time() + conn.rpc_timeout
+        while time() < deadline
+            if isready(ch)
+                try
+                    response = take!(ch)
+                catch e
+                    if e isa InvalidStateException && attempt < max_retries
+                        retry_after = true
+                        sleep(0.5)
+                    else
+                        rethrow()
+                    end
+                end
+                break
+            end
+            sleep(0.01)
+        end
+        if response === nothing
+            if retry_after
                 continue
             end
-            rethrow()
+            lock(conn.lock) do
+                delete!(conn.response_channels, rid)
+            end
+            throw(ConnectionError("RPC timeout after $(conn.rpc_timeout)s waiting for `$method` response"))
         end
 
         if haskey(response, "error")

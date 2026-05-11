@@ -96,6 +96,8 @@ Base.@kwdef mutable struct RemoteConnection{P} <: AbstractRemoteConnection
     last_error::Union{Exception, Nothing} = nothing
     "Whether to verify TLS certificates on `wss://` connections. Default `true`. Set to `false` for self-signed certs in test/CI environments — never disable in production."
     tls_verify::Bool = true
+    "Maximum time (seconds) `_rpc_call` will wait for a response before throwing `ConnectionError`. Prevents indefinite hangs when a request reaches the server but no response is delivered (e.g. server bug, malformed response that fails id-routing). Set to `Inf` to disable."
+    rpc_timeout::Float64 = 30.0
 end
 
 # Concrete protocol-tagged types. Methods that only apply to one transport
@@ -324,6 +326,8 @@ Keyword arguments:
 - `reconnect_max_delay::Float64=30.0`: Cap on the backoff delay
 - `reconnect_jitter::Float64=0.1`: Random jitter factor [0,1] applied to each backoff
 - `ping_interval::Float64=30.0`: Keepalive cadence; `0` disables
+- `tls_verify::Bool=true`: Verify TLS certs on `wss://`. Set `false` only for self-signed test certs
+- `rpc_timeout::Float64=30.0`: Max seconds to wait for an RPC response; `Inf` disables
 
 Returns a `SurrealClient{C}` where `C` is the concrete connection backend type.
 
@@ -355,7 +359,8 @@ function connect(url::String;
                  reconnect_max_delay::Float64=30.0,
                  reconnect_jitter::Float64=0.1,
                  ping_interval::Float64=30.0,
-                 tls_verify::Bool=true)
+                 tls_verify::Bool=true,
+                 rpc_timeout::Float64=30.0)
     scheme = _parse_scheme(url)
 
     if scheme in (:ws, :wss, :http, :https)
@@ -381,7 +386,8 @@ function connect(url::String;
                                  reconnect_max_delay=reconnect_max_delay,
                                  reconnect_jitter=reconnect_jitter,
                                  ping_interval=ping_interval,
-                                 tls_verify=tls_verify) :
+                                 tls_verify=tls_verify,
+                                 rpc_timeout=rpc_timeout) :
             RemoteWSConnection(url=ws_url,
                                http_base_url=http_base,
                                response_channels=Dict{Int, Channel}(),
@@ -393,7 +399,8 @@ function connect(url::String;
                                reconnect_max_delay=reconnect_max_delay,
                                reconnect_jitter=reconnect_jitter,
                                ping_interval=ping_interval,
-                               tls_verify=tls_verify)
+                               tls_verify=tls_verify,
+                               rpc_timeout=rpc_timeout)
         _connect_remote!(conn)
         # Wait briefly for WS to establish connection (HTTP is instant)
         if is_ws
