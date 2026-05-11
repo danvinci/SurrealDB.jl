@@ -39,6 +39,7 @@ function _roundtrip(db, id::String, value)
     return row["v"]
 end
 
+println(stderr, "[testset] scalar types"); flush(stderr)
 @testset "scalar types" begin
     db = _rt_client()
     try
@@ -67,6 +68,7 @@ end
     end
 end
 
+println(stderr, "[testset] collection types"); flush(stderr)
 @testset "collection types" begin
     db = _rt_client()
     try
@@ -95,6 +97,7 @@ end
     end
 end
 
+println(stderr, "[testset] RecordID round-trip"); flush(stderr)
 @testset "RecordID round-trip" begin
     db = _rt_client()
     try
@@ -131,6 +134,7 @@ end
     end
 end
 
+println(stderr, "[testset] datetime via raw SurrealQL"); flush(stderr)
 @testset "datetime via raw SurrealQL" begin
     db = _rt_client()
     try
@@ -152,6 +156,7 @@ end
     end
 end
 
+println(stderr, "[testset] uuid via raw SurrealQL"); flush(stderr)
 @testset "uuid via raw SurrealQL" begin
     db = _rt_client()
     try
@@ -171,6 +176,7 @@ end
     end
 end
 
+println(stderr, "[testset] deeply nested structure"); flush(stderr)
 @testset "deeply nested structure" begin
     db = _rt_client()
     try
