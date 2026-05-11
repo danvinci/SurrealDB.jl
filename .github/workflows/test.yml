@@ -51,8 +51,10 @@ jobs:
         run: |
           docker run -d -p 8000:8000 \
             --name surrealdb \
+            -e SURREAL_LOG=debug \
+            -e RUST_LOG=surrealdb=debug,surrealdb_server=debug \
             ${{ matrix.surreal-image }} \
-            start --user root --pass root memory
+            start --user root --pass root --log debug memory
       - name: Wait for SurrealDB
         run: |
           for i in $(seq 1 30); do
