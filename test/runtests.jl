@@ -39,97 +39,104 @@ end
 const SERVER_AVAILABLE = _server_reachable(TEST_URL)
 SERVER_AVAILABLE || @info "Skipping server-dependent tests — no SurrealDB at $(TEST_URL). Set SURREALDB_URL or start `surreal start --bind 127.0.0.1:8001`."
 
+# Per-testset progress marker. Surfaces "which testset hung?" in CI logs when
+# the suite is force-cancelled by the timeout cap. Uses `println` directly +
+# explicit flush because @info may buffer behind log level filters and CI log
+# tailers cut on the last flushed line.
+const _T0 = time()
+function _mark(phase::String, name::String)
+    elapsed = round(time() - _T0; digits=1)
+    println(stdout, "::group::[$phase t=$(elapsed)s] $name")
+    println(stderr, "[$phase t=$(elapsed)s] $name")
+    flush(stdout); flush(stderr)
+end
+function _section(fn::Function, name::String)
+    _mark("BEGIN", name)
+    try
+        fn()
+    finally
+        _mark("END  ", name)
+        println(stdout, "::endgroup::"); flush(stdout)
+    end
+end
+
 @testset "SurrealDB.jl" begin
     # --- No-server testsets (always run) ---
 
-    @testset "Types" begin
-        include("test_types.jl")
+    _section("Types") do
+        @testset "Types" begin include("test_types.jl") end
     end
-
-    @testset "Public API surface" begin
-        include("test_api_surface.jl")
+    _section("Public API surface") do
+        @testset "Public API surface" begin include("test_api_surface.jl") end
     end
-
-    @testset "Aqua" begin
-        include("test_aqua.jl")
+    _section("Aqua") do
+        @testset "Aqua" begin include("test_aqua.jl") end
     end
-
-    @testset "JET" begin
-        include("test_jet.jl")
+    _section("JET") do
+        @testset "JET" begin include("test_jet.jl") end
     end
-
-    # Error parser — synthetic payloads, no network.
-    @testset "Errors" begin
-        include("test_errors.jl")
+    _section("Errors") do
+        @testset "Errors" begin include("test_errors.jl") end
     end
-
-    # Property-style fuzz over parser entry points.
-    @testset "Fuzz" begin
-        include("test_fuzz.jl")
+    _section("Fuzz") do
+        @testset "Fuzz" begin include("test_fuzz.jl") end
     end
-
-    # Reconnect-path state-machine unit tests, no network.
-    @testset "Reconnect" begin
-        include("test_reconnect.jl")
+    _section("Reconnect") do
+        @testset "Reconnect" begin include("test_reconnect.jl") end
     end
-
-    # Reconnect integration: real WS roundtrips against an in-process mock.
-    @testset "Reconnect Integration" begin
-        include("test_reconnect_integration.jl")
+    _section("Reconnect Integration") do
+        @testset "Reconnect Integration" begin include("test_reconnect_integration.jl") end
     end
-
-    # Concurrent-load resilience under socket drop. Hermetic via mock WS.
-    @testset "Load resilience" begin
-        include("test_load_resilience.jl")
+    _section("Load resilience") do
+        @testset "Load resilience" begin include("test_load_resilience.jl") end
     end
 
     # --- Server-dependent testsets (gated on SERVER_AVAILABLE) ---
 
     if SERVER_AVAILABLE
-        @testset "Connection" begin
-            include("test_connection.jl")
+        _section("Connection") do
+            @testset "Connection" begin include("test_connection.jl") end
         end
-        @testset "Auth" begin
-            include("test_auth.jl")
+        _section("Auth") do
+            @testset "Auth" begin include("test_auth.jl") end
         end
-        @testset "Methods" begin
-            include("test_methods.jl")
+        _section("Methods") do
+            @testset "Methods" begin include("test_methods.jl") end
         end
-        @testset "Query" begin
-            include("test_query.jl")
+        _section("Query") do
+            @testset "Query" begin include("test_query.jl") end
         end
-        @testset "Session" begin
-            include("test_session.jl")
+        _section("Session") do
+            @testset "Session" begin include("test_session.jl") end
         end
-        @testset "Live" begin
-            include("test_live.jl")
+        _section("Live") do
+            @testset "Live" begin include("test_live.jl") end
         end
-        @testset "Integration Gaps" begin
-            include("test_integration_gaps.jl")
+        _section("Integration Gaps") do
+            @testset "Integration Gaps" begin include("test_integration_gaps.jl") end
         end
-        # Conformance ports from surrealdb.go's TestSurrealDBSuite.
-        @testset "Go SDK Conformance" begin
-            include("test_go_conformance.jl")
+        _section("Go SDK Conformance") do
+            @testset "Go SDK Conformance" begin include("test_go_conformance.jl") end
         end
-        @testset "Type round-trip" begin
-            include("test_type_roundtrip.jl")
+        _section("Type round-trip") do
+            @testset "Type round-trip" begin include("test_type_roundtrip.jl") end
         end
-        @testset "JWT expiry" begin
-            include("test_jwt_expiry.jl")
+        _section("JWT expiry") do
+            @testset "JWT expiry" begin include("test_jwt_expiry.jl") end
         end
     end
 
     # --- Embedded (requires libsurreal) ---
 
     if SurrealDB.LibSurreal.is_loaded()
-        @testset "Embedded" begin
-            include("test_embedded.jl")
+        _section("Embedded") do
+            @testset "Embedded" begin include("test_embedded.jl") end
         end
-        @testset "FFI Types" begin
-            include("test_ffi_types.jl")
+        _section("FFI Types") do
+            @testset "FFI Types" begin include("test_ffi_types.jl") end
         end
-        @testset "Memory leak (embedded)" begin
-            include("test_memory.jl")
+        _section("Memory leak (embedded)") do
+            @testset "Memory leak (embedded)" begin include("test_memory.jl") end
         end
     end
 end
