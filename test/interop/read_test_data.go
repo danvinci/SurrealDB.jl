@@ -73,7 +73,7 @@ func main() {
 			failures = append(failures, fmt.Sprintf("%s: row not found", kind))
 			continue
 		}
-		if !numericEqual(row.Value, want) && !reflect.DeepEqual(row.Value, want) {
+		if !valuesEqual(row.Value, want) {
 			failures = append(failures, fmt.Sprintf("%s: expected %v (%T), got %v (%T)",
 				kind, want, want, row.Value, row.Value))
 		}
@@ -126,28 +126,70 @@ func check(err error, op string) {
 	}
 }
 
-// numericEqual handles SurrealDB's int-as-int64 vs Julia-int conversion.
-// Compares numerics by value; returns false for non-numeric pairs so the
-// caller falls through to DeepEqual.
-func numericEqual(a, b interface{}) bool {
-	af, aok := toFloat(a)
-	bf, bok := toFloat(b)
-	if aok && bok {
-		return af == bf
+// valuesEqual is a recursive equality that tolerates integer-type drift
+// across SDKs (int vs int64 vs uint64 vs float64-from-JSON). The Go SDK's
+// CBOR/JSON path can decode SurrealDB ints to any of these depending on
+// magnitude and codec; reflect.DeepEqual rejects same-magnitude values
+// with different concrete types, producing confusing "[1 2 3] == [1 2 3]"
+// failures.
+//
+// Semantics: numerics compare by value; slices and maps recurse;
+// everything else falls through to DeepEqual.
+func valuesEqual(a, b interface{}) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
 	}
-	return false
+	switch av := a.(type) {
+	case []interface{}:
+		bv, ok := b.([]interface{})
+		if !ok || len(av) != len(bv) {
+			return false
+		}
+		for i := range av {
+			if !valuesEqual(av[i], bv[i]) {
+				return false
+			}
+		}
+		return true
+	case map[string]interface{}:
+		bv, ok := b.(map[string]interface{})
+		if !ok || len(av) != len(bv) {
+			return false
+		}
+		for k, va := range av {
+			vb, present := bv[k]
+			if !present || !valuesEqual(va, vb) {
+				return false
+			}
+		}
+		return true
+	}
+	if af, aok := toFloat(a); aok {
+		if bf, bok := toFloat(b); bok {
+			return af == bf
+		}
+	}
+	return reflect.DeepEqual(a, b)
 }
 
 func toFloat(x interface{}) (float64, bool) {
 	switch v := x.(type) {
 	case int:
 		return float64(v), true
+	case int32:
+		return float64(v), true
 	case int64:
+		return float64(v), true
+	case uint:
+		return float64(v), true
+	case uint32:
+		return float64(v), true
+	case uint64:
+		return float64(v), true
+	case float32:
 		return float64(v), true
 	case float64:
 		return v, true
-	case uint64:
-		return float64(v), true
 	}
 	return 0, false
 }
