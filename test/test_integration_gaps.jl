@@ -217,7 +217,9 @@ end
         CREATE test_port:tx1 SET val = 'committed_data';
         COMMIT TRANSACTION;
     """)
-    @test length(results) >= 2
+    # v2 collapses multi-stmt transactions into 1 row; v3 returns per-statement.
+    # The semantic check is the SELECT below; the length here just asserts non-empty.
+    @test length(results) >= 1
 
     result = SurrealDB.select(client, "test_port:tx1")
     @test result isa AbstractDict
@@ -253,7 +255,8 @@ end
         RETURN true;
         COMMIT TRANSACTION;
     """)
-    @test length(result) >= 3  # at least BEGIN result + CREATE result + RETURN result
+    # v2 collapses multi-stmt transactions into 1 row; v3 returns per-statement.
+    @test length(result) >= 1
 
     rows = SurrealDB.select(client, "test_port:tx_ret")
     @test rows isa AbstractDict
