@@ -101,11 +101,16 @@ function _reconnect_apply_state!(conn::RemoteWSConnection)
 
     # Re-subscribe live queries. New UUIDs replace old ones; update live_handles
     # so kill!(sub) targets the server-side subscription after reconnect.
+    # notification_channels mutations go under notification_lock to serialize
+    # against concurrent user-thread kill!/_teardown_notification_channel.
     old_subs = copy(conn.live_subscriptions)
     empty!(conn.live_subscriptions)
 
-    old_channels = copy(conn.notification_channels)
-    empty!(conn.notification_channels)
+    old_channels = lock(conn.notification_lock) do
+        snap = copy(conn.notification_channels)
+        empty!(conn.notification_channels)
+        snap
+    end
 
     old_handles = copy(conn.live_handles)
     empty!(conn.live_handles)
@@ -117,7 +122,9 @@ function _reconnect_apply_state!(conn::RemoteWSConnection)
                 result = _rpc_call(client, "live", Any[table, diff])
                 new_qid = result isa String ? result : string(result)
                 conn.live_subscriptions[new_qid] = (table, diff)
-                conn.notification_channels[new_qid] = ch
+                lock(conn.notification_lock) do
+                    conn.notification_channels[new_qid] = ch
+                end
                 # Re-key handle so kill!(sub) targets the new server-side query_id.
                 sub = get(old_handles, old_qid, nothing)
                 if sub !== nothing
@@ -267,12 +274,16 @@ function _teardown_channels!(conn::RemoteWSConnection)
         end
         empty!(conn.response_channels)
     end
-    for ch in values(conn.notification_channels)
+    channels = lock(conn.notification_lock) do
+        snap = collect(values(conn.notification_channels))
+        empty!(conn.notification_channels)
+        snap
+    end
+    for ch in channels
         if isopen(ch)
             try; close(ch); catch; end
         end
     end
-    empty!(conn.notification_channels)
 end
 
 function _start_pinger!(conn::RemoteWSConnection)
