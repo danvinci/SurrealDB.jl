@@ -234,7 +234,7 @@ function _ws_reader_task(conn::RemoteWSConnection)
             continue
         end
 
-        if haskey(msg, "id")
+        if haskey(msg, "id") && msg["id"] !== nothing
             rid = msg["id"]
             @debug "SurrealDB ws RPC ←" rid=rid has_error=haskey(msg, "error")
             lock(conn.lock) do
@@ -254,6 +254,22 @@ function _ws_reader_task(conn::RemoteWSConnection)
             # and v3 server images.
             @debug "SurrealDB ws notification ←"
             _dispatch_live_notification(conn, msg["result"])
+        elseif haskey(msg, "error")
+            # Orphan error: server sent `{error: {...}}` with no usable id.
+            # Per JSON-RPC 2.0, parse errors (-32700) and pre-id errors fire
+            # before the id can be parsed, so the server returns id=null or
+            # omits it. Without a routing target, in-flight RPCs would hang
+            # until `rpc_timeout` fires (~30s). Signal them all with the
+            # actual server error so callers fail fast and can retry.
+            #
+            # Observed on v2 test-remote when scalar-type round-trip sends
+            # something v2's RPC parser rejects (root cause TBD; v3 accepts
+            # the same payload). This branch turns a 30s hang into a typed
+            # `RPCError(-32700, "Parse error")` raised at the call site.
+            err = msg["error"]
+            println(stderr, "[ws orphan error] $(first(raw, 300))")
+            flush(stderr)
+            _signal_inflight_with_error!(conn, err)
         else
             println(stderr, "[ws unrecognized] $(first(raw, 300))")
             flush(stderr)
@@ -293,6 +309,35 @@ function _signal_inflight_disconnect!(conn::RemoteWSConnection)
             end
         end
     end
+end
+
+# Signal every pending RPC with the actual server-supplied error envelope.
+# Used when the reader sees a no-id `{error: ...}` frame: the connection is
+# still alive, but the server has rejected something it can't attribute to a
+# specific request (typically a parse error). Failing all in-flight callers
+# fast is safer than letting them age out at `rpc_timeout`; a parse error
+# means the channel is in a degraded state and subsequent RPCs may also
+# fail. Callers can retry on a fresh request.
+#
+# Distinct from `_signal_inflight_disconnect!`: that one fires on socket drop
+# with a synthetic "Connection lost mid-request" envelope. This one forwards
+# the actual server-supplied error so callers see the real cause.
+function _signal_inflight_with_error!(conn::RemoteWSConnection, err)
+    channels = lock(conn.lock) do
+        chs = collect(values(conn.response_channels))
+        empty!(conn.response_channels)
+        chs
+    end
+    payload = Dict("error" => err)
+    for ch in channels
+        if isopen(ch) && !isready(ch)
+            try
+                put!(ch, payload)
+            catch
+            end
+        end
+    end
+    return nothing
 end
 
 function _teardown_channels!(conn::RemoteWSConnection)
