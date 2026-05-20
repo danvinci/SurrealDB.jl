@@ -56,6 +56,25 @@ jobs:
             sleep 1
           done
 
+      # Raw WSS upgrade probe — captures the server's response headers on the
+      # WebSocket upgrade so we can see what the v3+TLS server returns
+      # (Sec-WebSocket-Accept, Sec-WebSocket-Protocol, body after 101, etc).
+      # Helps debug "first RPC drops with Connection lost mid-request" — the
+      # SDK sees a 101 then a dead socket; this surfaces what's between.
+      - name: Raw WSS upgrade probe (openssl s_client)
+        if: always()
+        run: |
+          KEY=$(python3 -c 'import os, base64; print(base64.b64encode(os.urandom(16)).decode())')
+          echo "=== probe A: with Sec-WebSocket-Protocol: json ==="
+          (printf 'GET /rpc HTTP/1.1\r\nHost: localhost:8443\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: %s\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Protocol: json\r\n\r\n' "$KEY"; sleep 2) \
+            | openssl s_client -connect localhost:8443 -servername localhost -quiet -verify_quiet 2>/dev/null \
+            | head -c 4096 | xxd | head -60 || true
+          echo
+          echo "=== probe B: without Sec-WebSocket-Protocol header ==="
+          (printf 'GET /rpc HTTP/1.1\r\nHost: localhost:8443\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: %s\r\nSec-WebSocket-Version: 13\r\n\r\n' "$KEY"; sleep 2) \
+            | openssl s_client -connect localhost:8443 -servername localhost -quiet -verify_quiet 2>/dev/null \
+            | head -c 4096 | xxd | head -60 || true
+
       # Verify the SDK actually completes a TLS handshake end-to-end. Just
       # connecting + running a query is enough to prove wss:// works.
       - name: Connect via wss:// and run a query
