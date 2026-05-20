@@ -463,21 +463,17 @@ function _dispatch_live_notification(conn::RemoteWSConnection, result::AbstractD
     qid = string(query_id)
     action = get(result, "action", "")
 
-    # KILLED is server confirmation of a kill RPC. `kill!` already tore down
-    # the local subscription channel (live.jl), so by the time KILLED lands
-    # `notification_channels[qid]` is gone and the lookup below would no-op
-    # anyway. Drop explicitly to avoid surfacing it to subscribers who didn't
-    # ask for it.
+    # KILLED frames arrive after kill!(sub) has already torn down the channel;
+    # drop them rather than surfacing server-confirmation as a subscriber event.
     action == "KILLED" && return nothing
 
+    notif = LiveNotification(result)
     lock(conn.notification_lock) do
         ch = get(conn.notification_channels, qid, nothing)
         if ch !== nothing && isopen(ch)
             try
-                put!(ch, result)
+                put!(ch, notif)
             catch e
-                # Channel closed concurrently by `kill!(sub)` between the
-                # `isopen` check and `put!`. Drop silently.
                 e isa InvalidStateException || rethrow()
             end
         end
