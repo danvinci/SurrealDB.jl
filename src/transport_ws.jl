@@ -368,14 +368,17 @@ function _dispatch_live_notification(conn::RemoteWSConnection, result::AbstractD
     action == "KILLED" && return nothing
 
     notif = LiveNotification(result)
-    lock(conn.notification_lock) do
-        ch = get(conn.notification_channels, qid, nothing)
-        if ch !== nothing && isopen(ch)
-            try
-                put!(ch, notif)
-            catch e
-                e isa InvalidStateException || rethrow()
-            end
+    # Snapshot under lock, put! after release. Channels are bounded (32); a slow
+    # subscriber would block put! while holding notification_lock, deadlocking
+    # any concurrent kill!/_teardown_notification_channel. (Cf. Go SDK aef39d3a.)
+    ch = lock(conn.notification_lock) do
+        get(conn.notification_channels, qid, nothing)
+    end
+    if ch !== nothing && isopen(ch)
+        try
+            put!(ch, notif)
+        catch e
+            e isa InvalidStateException || rethrow()
         end
     end
     return nothing
@@ -391,14 +394,15 @@ function _dispatch_notification(conn::RemoteWSConnection, notif)
         return
     end
     qid = string(query_id)
-    lock(conn.notification_lock) do
-        ch = get(conn.notification_channels, qid, nothing)
-        if ch !== nothing && isopen(ch)
-            try
-                put!(ch, params)
-            catch e
-                e isa InvalidStateException || rethrow()
-            end
+    # Same snapshot-then-signal pattern as _dispatch_live_notification.
+    ch = lock(conn.notification_lock) do
+        get(conn.notification_channels, qid, nothing)
+    end
+    if ch !== nothing && isopen(ch)
+        try
+            put!(ch, params)
+        catch e
+            e isa InvalidStateException || rethrow()
         end
     end
     return nothing
