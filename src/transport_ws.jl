@@ -263,23 +263,24 @@ function _signal_inflight_with_error!(conn::RemoteWSConnection, err)
 end
 
 function _teardown_channels!(conn::RemoteWSConnection)
-    lock(conn.lock) do
-        for ch in values(conn.response_channels)
-            if isopen(ch)
-                try
-                    put!(ch, Dict("error" => Dict("code" => -1, "message" => "Connection closed")))
-                catch
-                end
-            end
-        end
+    response_chs = lock(conn.lock) do
+        snap = collect(values(conn.response_channels))
         empty!(conn.response_channels)
+        snap
     end
-    channels = lock(conn.notification_lock) do
+    payload = Dict("error" => Dict("code" => -1, "message" => "Connection closed"))
+    for ch in response_chs
+        # Skip if the real response already landed (channel full); caller's take! succeeds.
+        if isopen(ch) && !isready(ch)
+            try; put!(ch, payload); catch; end
+        end
+    end
+    notif_chs = lock(conn.notification_lock) do
         snap = collect(values(conn.notification_channels))
         empty!(conn.notification_channels)
         snap
     end
-    for ch in channels
+    for ch in notif_chs
         if isopen(ch)
             try; close(ch); catch; end
         end
