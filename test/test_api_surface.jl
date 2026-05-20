@@ -31,7 +31,7 @@ const EXPECTED_EXPORTS = Set([
     :signin!, :signup!, :authenticate!, :invalidate!,
 
     # Database scope
-    :use!, :info, :version, :health,
+    :use!, :info, :version, :health, :ping,
 
     # Query / CRUD
     :query, :query_table, :query_one,

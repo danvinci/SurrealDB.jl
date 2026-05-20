@@ -16,7 +16,7 @@ export AbstractConnection, RemoteConnection, EmbeddedConnection
 export SurrealClient
 export connect, close!, status, events
 export signin!, signup!, authenticate!, invalidate!
-export use!, info, version, health
+export use!, info, version, health, ping
 export query, query_table, query_one, create, select, update, delete, insert, upsert, merge
 export relate, insert_relation
 export patch, patch_add, patch_remove, patch_replace

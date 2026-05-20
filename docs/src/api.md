@@ -59,6 +59,7 @@ SurrealDB.patch_add
 SurrealDB.patch_remove
 SurrealDB.patch_replace
 SurrealDB.run
+SurrealDB.ping
 SurrealDB.let!
 SurrealDB.unset!
 ```

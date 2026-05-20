@@ -523,6 +523,22 @@ function version(client::SurrealClient{C}) where {C<:AbstractConnection}
 end
 
 """
+    ping(client::SurrealClient) -> Bool
+
+Send a lightweight RPC ping. Returns `true` if the server responds. Backs the
+keepalive timer; exposed for callers who want a manual liveness check
+without `health()`'s trivial-query fallback.
+"""
+function ping(client::SurrealClient{C}) where {C<:AbstractConnection}
+    try
+        _rpc_call(client, "ping", Any[])
+        return true
+    catch
+        return false
+    end
+end
+
+"""
     health(client::SurrealClient)
 
 Check the health of the database connection.
