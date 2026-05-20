@@ -217,62 +217,41 @@ function _ws_reader_task(conn::RemoteWSConnection)
     end
 end
 
-# Unblock in-flight RPCs on socket drop with a synthetic transport error.
-# Unlike _teardown_channels!, does NOT close notification channels or empty dicts.
-function _signal_inflight_disconnect!(conn::RemoteWSConnection)
-    # Snapshot under lock, signal after release — put! on a 1-cap channel blocks
-    # if the real response already landed; holding lock across put! deadlocks reader.
+# Drain response_channels under lock and deliver `payload` to every open
+# non-ready channel — used by the three signal-inflight paths. Skips channels
+# that already received the real response (their caller's take! will succeed).
+# Snapshot-then-signal: holding conn.lock across put! on a 1-cap channel would
+# deadlock the reader, which needs the lock to dispatch responses.
+function _drain_and_signal_response_channels!(conn::RemoteWSConnection, payload::Dict)
     channels = lock(conn.lock) do
         chs = collect(values(conn.response_channels))
         empty!(conn.response_channels)
         chs
     end
     for ch in channels
-        # If the channel is already full (the real response landed), the
-        # caller's take! will succeed normally; no synthetic error needed.
         if isopen(ch) && !isready(ch)
-            try
-                put!(ch, Dict("error" => Dict("code" => -1,
-                    "message" => "Connection lost mid-request")))
-            catch
-            end
-        end
-    end
-end
-
-# Forward the server-supplied error to all in-flight RPCs (connection still alive).
-# Used for no-id frames where the server can't attribute the error to a specific request.
-function _signal_inflight_with_error!(conn::RemoteWSConnection, err)
-    channels = lock(conn.lock) do
-        chs = collect(values(conn.response_channels))
-        empty!(conn.response_channels)
-        chs
-    end
-    payload = Dict("error" => err)
-    for ch in channels
-        if isopen(ch) && !isready(ch)
-            try
-                put!(ch, payload)
-            catch
-            end
+            try; put!(ch, payload); catch; end
         end
     end
     return nothing
 end
 
+# Unblock in-flight RPCs on socket drop with a synthetic transport error.
+# Unlike _teardown_channels!, does NOT close notification channels or empty dicts.
+function _signal_inflight_disconnect!(conn::RemoteWSConnection)
+    _drain_and_signal_response_channels!(conn,
+        Dict("error" => Dict("code" => -1, "message" => "Connection lost mid-request")))
+end
+
+# Forward the server-supplied error to all in-flight RPCs (connection still alive).
+# Used for no-id frames where the server can't attribute the error to a specific request.
+function _signal_inflight_with_error!(conn::RemoteWSConnection, err)
+    _drain_and_signal_response_channels!(conn, Dict("error" => err))
+end
+
 function _teardown_channels!(conn::RemoteWSConnection)
-    response_chs = lock(conn.lock) do
-        snap = collect(values(conn.response_channels))
-        empty!(conn.response_channels)
-        snap
-    end
-    payload = Dict("error" => Dict("code" => -1, "message" => "Connection closed"))
-    for ch in response_chs
-        # Skip if the real response already landed (channel full); caller's take! succeeds.
-        if isopen(ch) && !isready(ch)
-            try; put!(ch, payload); catch; end
-        end
-    end
+    _drain_and_signal_response_channels!(conn,
+        Dict("error" => Dict("code" => -1, "message" => "Connection closed")))
     notif_chs = lock(conn.live_lock) do
         snap = collect(values(conn.notification_channels))
         empty!(conn.notification_channels)
@@ -355,6 +334,24 @@ function _is_live_notification(msg)
     return haskey(r, "action") && haskey(r, "id")
 end
 
+# Deliver a payload to a live-subscription channel. Snapshot under live_lock then
+# put! after release — channels are bounded (32); holding the lock across a
+# slow subscriber's put! would deadlock any concurrent kill! / reconnect on the
+# same lock. (Cf. Go SDK aef39d3a.)
+function _deliver_to_subscriber!(conn::RemoteWSConnection, qid::String, payload)
+    ch = lock(conn.live_lock) do
+        get(conn.notification_channels, qid, nothing)
+    end
+    if ch !== nothing && isopen(ch)
+        try
+            put!(ch, payload)
+        catch e
+            e isa InvalidStateException || rethrow()
+        end
+    end
+    return nothing
+end
+
 function _dispatch_live_notification(conn::RemoteWSConnection, result::AbstractDict)
     query_id = get(result, "id", nothing)
     query_id === nothing && return nothing
@@ -365,21 +362,7 @@ function _dispatch_live_notification(conn::RemoteWSConnection, result::AbstractD
     # drop them rather than surfacing server-confirmation as a subscriber event.
     action == "KILLED" && return nothing
 
-    notif = LiveNotification(result)
-    # Snapshot under lock, put! after release. Channels are bounded (32); a slow
-    # subscriber would block put! while holding live_lock, deadlocking any
-    # concurrent kill! waiting on the same lock. (Cf. Go SDK aef39d3a.)
-    ch = lock(conn.live_lock) do
-        get(conn.notification_channels, qid, nothing)
-    end
-    if ch !== nothing && isopen(ch)
-        try
-            put!(ch, notif)
-        catch e
-            e isa InvalidStateException || rethrow()
-        end
-    end
-    return nothing
+    _deliver_to_subscriber!(conn, qid, LiveNotification(result))
 end
 
 # Legacy {method:"notify"} envelope — no production server emits this, kept for compatibility.
@@ -391,19 +374,7 @@ function _dispatch_notification(conn::RemoteWSConnection, notif)
         flush(stderr)
         return
     end
-    qid = string(query_id)
-    # Same snapshot-then-signal pattern as _dispatch_live_notification.
-    ch = lock(conn.live_lock) do
-        get(conn.notification_channels, qid, nothing)
-    end
-    if ch !== nothing && isopen(ch)
-        try
-            put!(ch, params)
-        catch e
-            e isa InvalidStateException || rethrow()
-        end
-    end
-    return nothing
+    _deliver_to_subscriber!(conn, string(query_id), params)
 end
 
 function _rpc_call_ws(client::SurrealClient{<:RemoteWSConnection}, method::String, params::Vector{Any};
