@@ -63,8 +63,8 @@ Base.@kwdef mutable struct RemoteConnection{P} <: AbstractRemoteConnection
     write_channel::Union{Channel, Nothing} = nothing
     "live query_id → notification Channel"
     notification_channels::Dict{String, Channel} = Dict{String, Channel}()
-    "Guards `notification_channels` against concurrent registration/teardown"
-    notification_lock::ReentrantLock = ReentrantLock()
+    "Guards the three live-query Dicts (notification_channels, live_subscriptions, live_handles) against concurrent registration/teardown across reconnect, kill!, and the WS reader"
+    live_lock::ReentrantLock = ReentrantLock()
     "live query_id → (table, diff) — used by `_reconnect_apply_state!` to re-issue subscriptions on reconnect"
     live_subscriptions::Dict{String, Tuple{String, Bool}} = Dict{String, Tuple{String, Bool}}()
     "live query_id → LiveSubscription handle — used by `kill!(client, qid)` to flip caller-held state"

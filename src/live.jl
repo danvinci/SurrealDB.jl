@@ -30,13 +30,19 @@ function live(client::SurrealClient{C}, table; diff::Bool=false) where {C<:Abstr
     ch = Channel{Any}(32)
     sub = LiveSubscription(query_id, ch, client, true)
 
-    # Register channel + handle on the connection so kill!-by-id can find it
+    # Register channel + handle on the connection so kill!-by-id can find it.
+    # All three live-query Dicts are mutated under one lock per backend to
+    # serialize against concurrent kill! and (WS only) the reconnect loop.
     if client.connection isa RemoteWSConnection
-        _setup_notification_channel(client.connection, query_id, ch)
-        client.connection.live_subscriptions[query_id] = (string(table), diff)
-        client.connection.live_handles[query_id] = sub
+        lock(client.connection.live_lock) do
+            client.connection.notification_channels[query_id] = ch
+            client.connection.live_subscriptions[query_id] = (string(table), diff)
+            client.connection.live_handles[query_id] = sub
+        end
     elseif client.connection isa EmbeddedConnection
-        client.connection.live_handles[query_id] = sub
+        lock(client.connection.lock) do
+            client.connection.live_handles[query_id] = sub
+        end
         # Embedded mode: spawn a task to poll the stream
         @async _poll_embedded_live(client.connection, query_id, ch)
     end
@@ -57,11 +63,15 @@ function kill!(client::SurrealClient{C}, query_id::String) where {C<:AbstractCon
     # RPC call fails (e.g. embedded path sends a pointer string as the UUID).
     sub = nothing
     if client.connection isa RemoteWSConnection
-        _teardown_notification_channel(client.connection, query_id)
-        delete!(client.connection.live_subscriptions, query_id)
-        sub = pop!(client.connection.live_handles, query_id, nothing)
+        sub = lock(client.connection.live_lock) do
+            delete!(client.connection.notification_channels, query_id)
+            delete!(client.connection.live_subscriptions, query_id)
+            pop!(client.connection.live_handles, query_id, nothing)
+        end
     elseif client.connection isa EmbeddedConnection
-        sub = pop!(client.connection.live_handles, query_id, nothing)
+        sub = lock(client.connection.lock) do
+            pop!(client.connection.live_handles, query_id, nothing)
+        end
     end
     if sub !== nothing
         sub.active = false

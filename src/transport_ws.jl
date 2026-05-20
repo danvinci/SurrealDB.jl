@@ -101,19 +101,17 @@ function _reconnect_apply_state!(conn::RemoteWSConnection)
 
     # Re-subscribe live queries. New UUIDs replace old ones; update live_handles
     # so kill!(sub) targets the server-side subscription after reconnect.
-    # notification_channels mutations go under notification_lock to serialize
-    # against concurrent user-thread kill!/_teardown_notification_channel.
-    old_subs = copy(conn.live_subscriptions)
-    empty!(conn.live_subscriptions)
-
-    old_channels = lock(conn.notification_lock) do
-        snap = copy(conn.notification_channels)
+    # All three live-query Dicts are mutated under live_lock to serialize against
+    # concurrent user-thread kill! / live().
+    old_subs, old_channels, old_handles = lock(conn.live_lock) do
+        subs = copy(conn.live_subscriptions)
+        chs = copy(conn.notification_channels)
+        hs = copy(conn.live_handles)
+        empty!(conn.live_subscriptions)
         empty!(conn.notification_channels)
-        snap
+        empty!(conn.live_handles)
+        (subs, chs, hs)
     end
-
-    old_handles = copy(conn.live_handles)
-    empty!(conn.live_handles)
 
     for (old_qid, (table, diff)) in old_subs
         ch = get(old_channels, old_qid, nothing)
@@ -121,15 +119,15 @@ function _reconnect_apply_state!(conn::RemoteWSConnection)
             try
                 result = _rpc_call(client, "live", Any[table, diff])
                 new_qid = result isa String ? result : string(result)
-                conn.live_subscriptions[new_qid] = (table, diff)
-                lock(conn.notification_lock) do
-                    conn.notification_channels[new_qid] = ch
-                end
-                # Re-key handle so kill!(sub) targets the new server-side query_id.
                 sub = get(old_handles, old_qid, nothing)
-                if sub !== nothing
-                    sub.query_id = new_qid
-                    conn.live_handles[new_qid] = sub
+                lock(conn.live_lock) do
+                    conn.live_subscriptions[new_qid] = (table, diff)
+                    conn.notification_channels[new_qid] = ch
+                    # Re-key handle so kill!(sub) targets the new server-side query_id.
+                    if sub !== nothing
+                        sub.query_id = new_qid
+                        conn.live_handles[new_qid] = sub
+                    end
                 end
             catch
                 # Re-subscription failed, close the old channel and mark sub dead
@@ -275,9 +273,11 @@ function _teardown_channels!(conn::RemoteWSConnection)
             try; put!(ch, payload); catch; end
         end
     end
-    notif_chs = lock(conn.notification_lock) do
+    notif_chs = lock(conn.live_lock) do
         snap = collect(values(conn.notification_channels))
         empty!(conn.notification_channels)
+        empty!(conn.live_subscriptions)
+        empty!(conn.live_handles)
         snap
     end
     for ch in notif_chs
@@ -346,20 +346,6 @@ function _stop_pinger!(conn::RemoteWSConnection)
     return nothing
 end
 
-function _setup_notification_channel(conn::RemoteWSConnection, query_id::String, ch::Channel)
-    lock(conn.notification_lock) do
-        conn.notification_channels[query_id] = ch
-    end
-    return nothing
-end
-
-function _teardown_notification_channel(conn::RemoteWSConnection, query_id::String)
-    lock(conn.notification_lock) do
-        delete!(conn.notification_channels, query_id)
-    end
-    return nothing
-end
-
 # Live-notification discriminator: result.action + result.id both present.
 # Two-field check avoids false-matching plain RPC responses with a Dict result.
 function _is_live_notification(msg)
@@ -381,9 +367,9 @@ function _dispatch_live_notification(conn::RemoteWSConnection, result::AbstractD
 
     notif = LiveNotification(result)
     # Snapshot under lock, put! after release. Channels are bounded (32); a slow
-    # subscriber would block put! while holding notification_lock, deadlocking
-    # any concurrent kill!/_teardown_notification_channel. (Cf. Go SDK aef39d3a.)
-    ch = lock(conn.notification_lock) do
+    # subscriber would block put! while holding live_lock, deadlocking any
+    # concurrent kill! waiting on the same lock. (Cf. Go SDK aef39d3a.)
+    ch = lock(conn.live_lock) do
         get(conn.notification_channels, qid, nothing)
     end
     if ch !== nothing && isopen(ch)
@@ -407,7 +393,7 @@ function _dispatch_notification(conn::RemoteWSConnection, notif)
     end
     qid = string(query_id)
     # Same snapshot-then-signal pattern as _dispatch_live_notification.
-    ch = lock(conn.notification_lock) do
+    ch = lock(conn.live_lock) do
         get(conn.notification_channels, qid, nothing)
     end
     if ch !== nothing && isopen(ch)

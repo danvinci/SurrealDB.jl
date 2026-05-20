@@ -256,8 +256,11 @@ function SurrealDB._poll_embedded_live(conn::EmbeddedConnection, query_id::Strin
         # Surface unexpected errors instead of silently dying
         @warn "_poll_embedded_live: terminated on error" query_id exception=(e, catch_backtrace())
     finally
-        # Drop the subscription's active flag so consumers know to stop iterating
-        sub = get(conn.live_handles, query_id, nothing)
+        # Drop the subscription's active flag so consumers know to stop iterating.
+        # conn.lock serializes against concurrent kill! / live() on live_handles.
+        sub = lock(conn.lock) do
+            get(conn.live_handles, query_id, nothing)
+        end
         if sub !== nothing
             sub.active = false
         end
