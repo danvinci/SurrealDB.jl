@@ -110,8 +110,20 @@ end
 
 """
     ScopedAuth(namespace, database, access, username, password)
+    ScopedAuth(namespace, database, access, params::AbstractDict)
 
 Scoped authentication credentials (record-level auth via an access method).
+
+The 5-arg form is the convenience case for SIGNIN clauses that reference
+`\$user` / `\$pass`. The dict form passes through arbitrary keys for SIGNIN
+clauses referencing other params (`\$email`, `\$name`, etc.).
+
+```julia
+SurrealDB.signin!(db, SurrealDB.ScopedAuth("ns", "db", "user_access", "alice", "hunter2"))
+SurrealDB.signin!(db, SurrealDB.ScopedAuth("ns", "db", "user_access",
+                                            Dict("email" => "a@example.com",
+                                                 "pass"  => "hunter2")))
+```
 """
 struct ScopedAuth
     namespace::String
@@ -119,6 +131,20 @@ struct ScopedAuth
     access::String
     username::String
     password::String
+    extra::Dict{String, Any}
+end
+
+ScopedAuth(ns::AbstractString, db::AbstractString, ac::AbstractString,
+           user::AbstractString, pass::AbstractString) =
+    ScopedAuth(String(ns), String(db), String(ac), String(user), String(pass),
+               Dict{String, Any}())
+
+function ScopedAuth(ns::AbstractString, db::AbstractString, ac::AbstractString,
+                    params::AbstractDict)
+    user = string(get(params, "user", ""))
+    pass = string(get(params, "pass", ""))
+    extra = Dict{String, Any}(string(k) => v for (k, v) in params if string(k) ∉ ("user", "pass"))
+    return ScopedAuth(String(ns), String(db), String(ac), user, pass, extra)
 end
 
 """
@@ -144,9 +170,16 @@ Base.show(io::IO, a::RootAuth) = print(io, "RootAuth(", a.username, ", ", _REDAC
 Base.show(io::IO, a::NamespaceAuth) =
     print(io, "NamespaceAuth(", a.namespace, "/", a.database, ", ",
               a.username, ", ", _REDACTED, ")")
-Base.show(io::IO, a::ScopedAuth) =
+function Base.show(io::IO, a::ScopedAuth)
     print(io, "ScopedAuth(", a.namespace, "/", a.database, "/", a.access,
-              ", ", a.username, ", ", _REDACTED, ")")
+              ", ", a.username, ", ", _REDACTED)
+    if !isempty(a.extra)
+        # Redact full extra block: callers may stash secrets there (api keys,
+        # one-time codes). Print only key names.
+        print(io, ", extra=[", join(sort!(collect(keys(a.extra))), ","), "]=", _REDACTED)
+    end
+    print(io, ")")
+end
 Base.show(io::IO, a::JwtAuth) = print(io, "JwtAuth(", _truncate_token(a.token), ")")
 
 # Convert auth structs to the parameter dict format expected by the RPC protocol
@@ -160,9 +193,13 @@ function _to_params(auth::NamespaceAuth)
 end
 
 function _to_params(auth::ScopedAuth)
-    return Dict("NS" => auth.namespace, "DB" => auth.database,
-                "AC" => auth.access,
-                "user" => auth.username, "pass" => auth.password)
+    p = Dict{String, Any}("NS" => auth.namespace, "DB" => auth.database,
+                          "AC" => auth.access,
+                          "user" => auth.username, "pass" => auth.password)
+    for (k, v) in auth.extra
+        p[k] = v
+    end
+    return p
 end
 
 # --- Relationship ---

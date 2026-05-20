@@ -196,4 +196,23 @@ end
     @test params["AC"] == "a"
     @test params["user"] == "u"
     @test params["pass"] == "p"
+
+    # Dict-variant for arbitrary SIGNIN params (matches Py/JS SDK flexibility).
+    auth = SurrealDB.ScopedAuth("n", "d", "a",
+        Dict("email" => "a@x.com", "pass" => "hunter2", "code" => "xyz"))
+    params = SurrealDB._to_params(auth)
+    @test params["NS"] == "n"
+    @test params["AC"] == "a"
+    @test params["user"] == ""           # no `user` key supplied → empty
+    @test params["pass"] == "hunter2"
+    @test params["email"] == "a@x.com"
+    @test params["code"] == "xyz"
+
+    # Show redacts the extra dict by name only — no values leak.
+    rendered = sprint(show, auth)
+    @test occursin("extra=", rendered)
+    @test occursin("code", rendered) || occursin("email", rendered)
+    @test !occursin("a@x.com", rendered)
+    @test !occursin("hunter2", rendered)
+    @test !occursin("xyz", rendered)
 end
