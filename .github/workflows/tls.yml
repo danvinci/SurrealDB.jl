@@ -61,18 +61,24 @@ jobs:
       # (Sec-WebSocket-Accept, Sec-WebSocket-Protocol, body after 101, etc).
       # Helps debug "first RPC drops with Connection lost mid-request" — the
       # SDK sees a 101 then a dead socket; this surfaces what's between.
+      #
+      # openssl s_client -quiet implies -ign_eof, so it won't exit when our
+      # stdin (the printf | sleep subshell) closes — the connection stays
+      # open and `head -c 4096` blocks indefinitely waiting for bytes the
+      # server may never send. `timeout 5` bounds the subprocess so the
+      # downstream `xxd | head` gets EOF and the step actually completes.
       - name: Raw WSS upgrade probe (openssl s_client)
         if: always()
         run: |
           KEY=$(python3 -c 'import os, base64; print(base64.b64encode(os.urandom(16)).decode())')
           echo "=== probe A: with Sec-WebSocket-Protocol: json ==="
           (printf 'GET /rpc HTTP/1.1\r\nHost: localhost:8443\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: %s\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Protocol: json\r\n\r\n' "$KEY"; sleep 2) \
-            | openssl s_client -connect localhost:8443 -servername localhost -quiet -verify_quiet 2>/dev/null \
+            | timeout 5 openssl s_client -connect localhost:8443 -servername localhost -quiet -verify_quiet 2>/dev/null \
             | head -c 4096 | xxd | head -60 || true
           echo
           echo "=== probe B: without Sec-WebSocket-Protocol header ==="
           (printf 'GET /rpc HTTP/1.1\r\nHost: localhost:8443\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: %s\r\nSec-WebSocket-Version: 13\r\n\r\n' "$KEY"; sleep 2) \
-            | openssl s_client -connect localhost:8443 -servername localhost -quiet -verify_quiet 2>/dev/null \
+            | timeout 5 openssl s_client -connect localhost:8443 -servername localhost -quiet -verify_quiet 2>/dev/null \
             | head -c 4096 | xxd | head -60 || true
 
       # Verify the SDK actually completes a TLS handshake end-to-end. Just
