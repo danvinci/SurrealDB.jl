@@ -431,24 +431,46 @@ function _rpc_call_ws(client::SurrealClient{<:RemoteWSConnection}, method::Strin
             throw(ConnectionError("Failed to send RPC: $e", e))
         end
 
+        # timed_out_ref distinguishes a watchdog-induced close from any other
+        # InvalidStateException source: on watchdog, the catch must NOT retry
+        # (channel is already closed, retry would hit it again immediately).
         response = nothing
         retry_after = false
-        deadline = time() + conn.rpc_timeout
-        while time() < deadline
-            if isready(ch)
-                try
-                    response = take!(ch)
-                catch e
-                    if e isa InvalidStateException && attempt < max_retries
+        if isinf(conn.rpc_timeout)
+            try
+                response = take!(ch)
+            catch e
+                if e isa InvalidStateException && attempt < max_retries
+                    retry_after = true
+                    sleep(0.5)
+                else
+                    rethrow()
+                end
+            end
+        else
+            timed_out_ref = Ref(false)
+            watchdog = Timer(conn.rpc_timeout) do _
+                # Skip close if response already landed (buffered in ch).
+                if isopen(ch) && !isready(ch)
+                    timed_out_ref[] = true
+                    try; close(ch); catch; end
+                end
+            end
+            try
+                response = take!(ch)
+            catch e
+                e isa InvalidStateException || rethrow()
+                if !timed_out_ref[]
+                    if attempt < max_retries
                         retry_after = true
                         sleep(0.5)
                     else
                         rethrow()
                     end
                 end
-                break
+            finally
+                close(watchdog)
             end
-            sleep(0.01)
         end
         if response === nothing
             if retry_after
