@@ -124,6 +124,9 @@ end
         _section("JWT expiry") do
             @testset "JWT expiry" begin include("test_jwt_expiry.jl") end
         end
+        _section("Signup") do
+            @testset "Signup" begin include("test_signup.jl") end
+        end
     end
 
     # --- Embedded (requires libsurreal) ---

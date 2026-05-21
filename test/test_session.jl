@@ -1,3 +1,5 @@
+using UUIDs
+
 client = get_test_client()
 
 @testset "Set variable" begin
@@ -71,6 +73,34 @@ end
     result = SurrealDB.query(client, "SELECT * FROM \$vec_var")
     @test length(result) >= 1
     SurrealDB.unset!(client, "vec_var")
+end
+
+# --- v3+ Sessions (attach/detach) ---
+
+@testset "attach!/detach!/sessions roundtrip (v3+)" begin
+    # v2 doesn't implement the attach RPC; gate via version probe.
+    ver = try; string(SurrealDB.version(client)); catch; ""; end
+    if occursin(r"surrealdb-2\.", ver)
+        @info "Skipping attach!/detach! — v2 server doesn't support v3 sessions"
+    else
+        sid = SurrealDB.attach!(client)
+        @test sid isa UUIDs.UUID
+        @test sid in SurrealDB.sessions(client)
+        SurrealDB.detach!(client, sid)
+        @test !(sid in SurrealDB.sessions(client))
+    end
+end
+
+@testset "attach! is WS-only — MethodError on HTTP" begin
+    # Dispatch-only check: attach! is gated on RemoteWSConnection.
+    http_url = replace(TEST_URL, "ws://" => "http://", "wss://" => "https://")
+    http_client = SurrealDB.connect(http_url; ns=TEST_NS, db=TEST_DB,
+                                    auth=SurrealDB.RootAuth("root", "root"))
+    try
+        @test_throws MethodError SurrealDB.attach!(http_client)
+    finally
+        SurrealDB.close!(http_client)
+    end
 end
 
 SurrealDB.close!(client)
