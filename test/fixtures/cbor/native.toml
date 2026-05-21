@@ -182,6 +182,9 @@ hex = "ce81190e10"
 ["duration_1s500ms"]
 hex = "ce82011a1dcd6500"
 
+["file_avatar"]
+hex = "d8378267617661746172736b757365725f34322e706e67"
+
 ["recordid_int_key"]
 hex = "c882657573657273182a"
 

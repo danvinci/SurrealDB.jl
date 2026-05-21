@@ -176,6 +176,10 @@ fn main() {
     emit("duration_1s500ms",
          &dur(vec![int(1), int(500_000_000)]));
 
+    // L3 typed: File = Tag(55, [bucket, key]). Ref convert.rs:337-352, 437-443.
+    emit("file_avatar",
+         &Value::Tag(55, Box::new(array(vec![text("avatars"), text("user_42.png")]))));
+
     // L3 typed: RecordID = Tag(8, [table_text, key]). Ref convert.rs:416-434
     // Key variants matching the polymorphic dispatch in convert.rs:586-599.
     let rid = |table: &str, key: Value| {

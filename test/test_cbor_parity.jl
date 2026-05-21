@@ -5,7 +5,7 @@
 
 using SurrealDB.SurrealCBOR
 using SurrealDB.SurrealCBOR: encode, Tagged, RecordID, Table, SurrealDecimal,
-    SurrealDateTime, SurrealDuration
+    SurrealDateTime, SurrealDuration, SurrealFile
 using UUIDs
 using Test
 using TOML
@@ -102,6 +102,9 @@ const _CASES = Dict{String, Any}(
     "duration_zero"         => SurrealDuration(0, 0),
     "duration_1h"           => SurrealDuration(3600, 0),
     "duration_1s500ms"      => SurrealDuration(1, 500_000_000),
+
+    # L3 typed — TAG_FILE (55)
+    "file_avatar"           => SurrealFile("avatars", "user_42.png"),
 
     # L3 typed — TAG_RECORDID (8) key variants
     "recordid_int_key"      => RecordID("users", 42),
