@@ -58,7 +58,7 @@ const EXPECTED_EXPORTS = Set([
     :export_db, :import_db,
 
     # Embedded
-    :libsurreal_load!,
+    :libsurreal_load!, :SurrealThing,
 
     # Tables / extensions
     :to_table, :to_metagraph,

@@ -18,11 +18,6 @@ end
 
 # --- C geometry types (mirrors sr_sr_geometry etc.) ---
 
-struct CCoord
-    x::Float64
-    y::Float64
-end
-
 @enum CGeometryTag::UInt32 begin
     C_GEOM_POINT
     C_GEOM_LINESTRING
@@ -349,38 +344,6 @@ end
 # ===================================================================
 # Public C-compatible type mirrors (for use in FFI)
 # ===================================================================
-
-"""
-    SurrealObject
-
-Mirrors SurrealDB's `sr_object_t` — a string-keyed key-value map.
-Wraps a Julia `Dict{String, Any}`.
-"""
-struct SurrealObject
-    data::Dict{String, Any}
-end
-SurrealObject() = SurrealObject(Dict{String, Any}())
-
-"""
-    SurrealArray
-
-Mirrors SurrealDB's `sr_array_t` — an ordered list of values.
-Wraps a Julia `Vector{Any}`.
-"""
-struct SurrealArray
-    items::Vector{Any}
-end
-SurrealArray() = SurrealArray(Any[])
-
-"""
-    SurrealNumber
-
-Mirrors SurrealDB's `sr_number_t` — int, float, or decimal.
-"""
-struct SurrealNumber
-    kind::CNumberTag
-    value::Any    # Int64, Float64, or String (for decimal)
-end
 
 """
     SurrealThing

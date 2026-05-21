@@ -222,10 +222,6 @@ end
 
 # --- Memory management ---
 
-function _require_lib()
-    return nothing
-end
-
 function free_string(s::Cstring)::Nothing
     s == C_NULL && return nothing
     !_is_loaded() && return nothing

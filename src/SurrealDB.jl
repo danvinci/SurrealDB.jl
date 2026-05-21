@@ -26,7 +26,7 @@ export begin!, commit!, cancel!
 export attach!, detach!, sessions
 export SurrealSession
 export export_db, import_db
-export libsurreal_load!
+export libsurreal_load!, SurrealThing
 export to_table, to_metagraph
 
 # --- Types ---
@@ -99,7 +99,7 @@ using .Embedded:
     EmbeddedConnection, libsurreal_load!, embedded_connect,
     julia_to_surreal_value, surreal_value_to_julia,
     julia_to_c_value, c_value_to_julia,
-    SurrealObject, SurrealArray, SurrealNumber, SurrealThing,
+    SurrealThing,
     CValueTag, CNumberTag, CGeometryTag, CScope, CAction,
     C_VALUE_NONE, C_VALUE_NULL, C_VALUE_BOOL, C_VALUE_NUMBER,
     C_VALUE_STRAND, C_VALUE_DURATION, C_VALUE_DATETIME, C_VALUE_UUID,

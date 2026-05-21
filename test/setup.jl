@@ -45,9 +45,3 @@ function clean_table!(client, table::String)
         @warn "Failed to clean table $table: $e"
     end
 end
-
-function get_embedded_client(; url="mem://")
-    client = SurrealDB.connect(url)
-    SurrealDB.use!(client, TEST_NS, TEST_DB)
-    return client
-end
