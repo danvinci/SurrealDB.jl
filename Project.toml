@@ -1,6 +1,6 @@
 name = "SurrealDB"
 uuid = "79cae1c5-98c2-497c-900b-3d25c1320e3c"
-version = "0.1.0"
+version = "0.1.0-alpha.3"
 authors = ["Dan <dan@example.com>"]
 
 [deps]
