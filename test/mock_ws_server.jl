@@ -12,13 +12,7 @@
 
 module MockWS
 
-using WebSockets, Sockets, JSON, UUIDs
-
-# SDK sends `Sec-WebSocket-Protocol: json` (required by SurrealDB v3+);
-# WebSockets.jl rejects upgrades with subprotocols not on the whitelist,
-# so register `json` here. Mirror this in any other test harness that
-# wraps WebSockets.upgrade.
-WebSockets.addsubproto("json")
+using HTTP, Sockets, JSON, UUIDs
 
 mutable struct Mock
     port::Int
@@ -76,7 +70,7 @@ function force_drop!(mock::Mock)
     lock(mock.lock) do
         ws = mock.active_ws
         if ws !== nothing
-            try; close(ws); catch; end
+            try; HTTP.WebSockets.close(ws); catch; end
         end
     end
 end
@@ -88,9 +82,9 @@ upgrade_count(mock::Mock) = lock(() -> mock.upgrade_count, mock.lock)
 
 function _serve_loop(mock::Mock)
     try
-        WebSockets.HTTP.listen("127.0.0.1", mock.port,
-                               server=mock.listener,
-                               readtimeout=0) do http
+        HTTP.listen("127.0.0.1", mock.port,
+                    server=mock.listener,
+                    readtimeout=0) do http
             attempt = lock(mock.lock) do
                 mock.connect_attempts += 1
                 mock.connect_attempts
@@ -102,8 +96,8 @@ function _serve_loop(mock::Mock)
                 return
             end
 
-            if WebSockets.is_upgrade(http.message)
-                WebSockets.upgrade(http) do _req, ws
+            if HTTP.WebSockets.isupgrade(http.message)
+                HTTP.WebSockets.upgrade(http) do ws
                     lock(mock.lock) do
                         mock.upgrade_count += 1
                         mock.active_ws = ws
@@ -125,14 +119,20 @@ end
 
 function _handle_connection(mock::Mock, ws)
     msg_count = 0
-    while isopen(ws)
-        data, ok = readguarded(ws)
-        ok || break
+    while !HTTP.WebSockets.isclosed(ws)
+        data = try
+            HTTP.WebSockets.receive(ws)
+        catch e
+            # WebSocketError (server-initiated close, protocol error) or
+            # raw socket loss — exit cleanly.
+            break
+        end
         isempty(data) && continue
 
         msg_count += 1
+        raw = data isa String ? data : String(data)
         req = try
-            JSON.parse(String(data))
+            JSON.parse(raw)
         catch
             break
         end
@@ -147,7 +147,7 @@ function _handle_connection(mock::Mock, ws)
 
         # Drop-after-N: close after the Nth message handled.
         if mock.drop_after_n > 0 && msg_count >= mock.drop_after_n
-            try; close(ws); catch; end
+            try; HTTP.WebSockets.close(ws); catch; end
             break
         end
     end
@@ -180,7 +180,11 @@ function _reply(mock::Mock, ws, req::AbstractDict)
     end
 
     response = JSON.json(Dict("id" => id, "result" => result))
-    writeguarded(ws, response)
+    try
+        HTTP.WebSockets.send(ws, response)
+    catch
+        # Socket closed mid-reply — handler loop will see isclosed and exit.
+    end
 end
 
 end # module MockWS
