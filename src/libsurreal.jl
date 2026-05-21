@@ -152,56 +152,28 @@ function _parse_sr_value(p::Ptr{Cvoid})::Any
     end
 end
 
-const _OBJECT_KEY_CANDIDATES = String[
-    # Core SurrealQL result envelope
-    "id", "result", "status", "time", "tb", "kind", "type",
-    # Universal record fields
-    "name", "value", "val", "data", "action", "error", "label",
-    "before", "after", "count",
-    # Auth
-    "username", "password", "email", "token", "access", "NS", "DB", "AC",
-    "firstname", "lastname",
-    # Graph / relate
-    "in", "out", "rel_in", "rel_out", "since", "score", "met",
-    "tags", "events", "description",
-    # Common test-shape and app-data fields
-    "age", "x", "y", "z", "k", "n", "m", "foo", "bar", "active", "enabled",
-    "key", "item", "item_id", "parent", "child", "owner", "role",
-    "message", "body", "title", "content",
-    # Timestamps
-    "created", "updated", "deleted", "deleted_at", "created_at",
-    "updated_at", "timestamp", "expires_at",
-    # Misc
-    "address", "city", "country", "phone", "url", "uri", "path", "size",
-    "color", "shape", "tag", "category", "priority", "rank", "level",
-]
-
 function _parse_sr_object(obj_ptr::Ptr{Cvoid})::Dict{String, Any}
     result = Dict{String, Any}()
-    n = ccall(_sym("sr_object_len"), Cint, (Ptr{Cvoid},), obj_ptr)
+    obj_ptr == C_NULL && return result
+
+    keys_out = Ref{Ptr{Ptr{UInt8}}}(C_NULL)
+    n = ccall(_sym("sr_object_keys"), Cint,
+              (Ptr{Cvoid}, Ptr{Ptr{Ptr{UInt8}}}), obj_ptr, keys_out)
     n <= 0 && return result
 
-    # sr_object_keys is unreliable on ARM64 (surreal_c early dev).
-    # sr_object_get works correctly with obj_ptr. Discover keys by probing
-    # common SurrealDB result field names + caller-supplied probe set, then
-    # stop once we've found `n` keys (sr_object_len reports total).
-    # Covers SurrealQL conventions (id, result, status, time, before/after for
-    # diffs), CRUD fields (name, value, val, data, count), graph (in, out,
-    # rel_in, rel_out, score, met, since, tags, events), auth (username,
-    # password, email, token, access, NS, DB, AC), info-style fields
-    # (description, action, error, label, kind, type), and common test-shape
-    # fields (age, x, y, z, k, n, m, foo, bar, active, key, item, item_id,
-    # parent, child, owner, role, message, body, title, content, created,
-    # updated, deleted_at, timestamp).
-    candidates = _OBJECT_KEY_CANDIDATES
-    found = 0
-    for key in candidates
-        val_ptr = ccall(_sym("sr_object_get"), Ptr{Cvoid}, (Ptr{Cvoid}, Cstring), obj_ptr, key)
-        if val_ptr != C_NULL
+    try
+        for i in 1:n
+            kp = unsafe_load(keys_out[], i)
+            kp == C_NULL && continue
+            key = unsafe_string(kp)
+            val_ptr = ccall(_sym("sr_object_get"), Ptr{Cvoid},
+                            (Ptr{Cvoid}, Cstring), obj_ptr, key)
+            val_ptr == C_NULL && continue
             result[key] = _parse_sr_value(val_ptr)
-            found += 1
         end
-        found >= n && break
+    finally
+        ccall(_sym("sr_free_string_arr"), Cvoid,
+              (Ptr{Ptr{UInt8}}, Cint), keys_out[], n)
     end
     return result
 end
