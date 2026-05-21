@@ -449,10 +449,18 @@ function _results_to_struct(::Type{T}, results::Vector{Any}) where {T}
 end
 
 function _results_to_struct(::Type{T}, results::Any) where {T}
-    if results isa AbstractVector
-        return _results_to_struct(T, results)
-    elseif results isa AbstractDict
+    # select/create output: single record (Dict), array of records (Vector), or scalar.
+    # Iterate directly rather than recursing into _results_to_struct — the
+    # previous recursive form relied on dispatch coincidence (Vector{Any} method
+    # match) and would infinite-loop on any other vector eltype.
+    if results isa AbstractDict
         return _construct_one(T, results)
+    elseif results isa AbstractVector
+        mapped = T[]
+        for r in results
+            r isa AbstractDict && push!(mapped, _construct_one(T, r))
+        end
+        return mapped
     else
         return results
     end
@@ -592,14 +600,7 @@ one_stream = SurrealDB.select(db, Stream, "stream:abc")
 ```
 """
 function select(client::SurrealClient{C}, ::Type{T}, what) where {C<:AbstractConnection, T}
-    result = select(client, what)
-    if result isa AbstractVector
-        return _results_to_struct(T, result)
-    elseif result isa AbstractDict
-        return _construct_one(T, result)
-    else
-        return result
-    end
+    return _results_to_struct(T, select(client, what))
 end
 
 # Typed create
@@ -614,13 +615,7 @@ stream = SurrealDB.create(db, Stream, "stream", Dict("name" => "new"))
 ```
 """
 function create(client::SurrealClient{C}, ::Type{T}, what, data) where {C<:AbstractConnection, T}
-    result = create(client, what, data)
-    if result isa AbstractDict
-        return _construct_one(T, result)
-    elseif result isa AbstractVector
-        return _results_to_struct(T, result)
-    end
-    return result
+    return _results_to_struct(T, create(client, what, data))
 end
 
 # --- Transactions ---
