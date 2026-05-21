@@ -28,11 +28,12 @@ function _ws_reconnect_loop(conn::RemoteWSConnection)
         attempt += 1
 
         try
-            # `subprotocol = "json"`: v3 requires explicit protocol; v2 inferred it.
-            # Without this, v3 accepts the upgrade then drops the first RPC.
-            WebSockets.open(conn.url;
-                            subprotocol = "json",
-                            require_ssl_verification = conn.tls_verify) do ws
+            # `Sec-WebSocket-Protocol: json`: v3 requires explicit protocol;
+            # v2 inferred it. Without this, v3 accepts the upgrade then drops
+            # the first RPC.
+            HTTP.WebSockets.open(conn.url;
+                                 headers = ["Sec-WebSocket-Protocol" => "json"],
+                                 require_ssl_verification = conn.tls_verify) do ws
                 conn.ws = ws
                 attempt = 0           # consecutive-failure counter resets
                 ever_connected = true
@@ -143,7 +144,7 @@ end
 
 function _ws_writer_task(conn::RemoteWSConnection)
     # Gate on socket, not status — writes during state replay must go out.
-    while conn.ws !== nothing && isopen(conn.ws)
+    while conn.ws !== nothing && !HTTP.WebSockets.isclosed(conn.ws)
         msg = try
             take!(conn.write_channel)
         catch e
@@ -153,14 +154,14 @@ function _ws_writer_task(conn::RemoteWSConnection)
         if msg == ""
             break
         end
-        if conn.ws !== nothing && isopen(conn.ws)
+        if conn.ws !== nothing && !HTTP.WebSockets.isclosed(conn.ws)
             try
-                write(conn.ws, msg)
+                HTTP.WebSockets.send(conn.ws, msg)
             catch e
                 e isa InvalidStateException && break
                 # Force-close so the reader EOFs and _signal_inflight_disconnect! fires.
                 @debug "SurrealDB ws writer error; closing socket" exception=e
-                try; close(conn.ws); catch; end
+                try; HTTP.WebSockets.close(conn.ws); catch; end
                 break
             end
         end
@@ -168,18 +169,21 @@ function _ws_writer_task(conn::RemoteWSConnection)
 end
 
 function _ws_reader_task(conn::RemoteWSConnection)
-    while conn.ws !== nothing && isopen(conn.ws)
-        data = try
-            read(conn.ws)
+    while conn.ws !== nothing && !HTTP.WebSockets.isclosed(conn.ws)
+        raw = try
+            HTTP.WebSockets.receive(conn.ws)
         catch e
-            if e isa EOFError || e isa Base.IOError
+            # WebSocketError covers server-Close + protocol violations;
+            # EOFError/IOError cover raw socket loss.
+            if e isa HTTP.WebSockets.WebSocketError || e isa EOFError || e isa Base.IOError
                 break
             end
             rethrow()
         end
-        isempty(data) && continue
-
-        raw = String(data)  # String() moves bytes — materialize once for parse + logging
+        isempty(raw) && continue
+        # `receive` returns `String` for TEXT frames; we send JSON as text. Tolerate
+        # binary just in case a future server emits it.
+        raw isa String || (raw = String(raw))
 
         msg = try
             JSON.parse(raw)
@@ -293,7 +297,7 @@ function _start_pinger!(conn::RemoteWSConnection)
                 catch
                     # Ping failed — close socket to trigger reconnection
                     if conn.ws !== nothing
-                        try; close(conn.ws); catch; end
+                        try; HTTP.WebSockets.close(conn.ws); catch; end
                     end
                     break
                 end

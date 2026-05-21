@@ -224,9 +224,9 @@ function _close_remote!(conn::RemoteConnection)
         return nothing
     end
     _stop_pinger!(conn)
-    # Close WS before signalling writer — otherwise reader blocks on read(ws) until server timeout.
+    # Close WS before signalling writer — otherwise reader blocks on receive(ws) until server timeout.
     if conn.ws !== nothing
-        try; close(conn.ws); catch; end
+        try; HTTP.WebSockets.close(conn.ws); catch; end
     end
     try
         put!(conn.write_channel, "")

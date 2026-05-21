@@ -1,7 +1,6 @@
 module SurrealDB
 
 using JSON
-import WebSockets
 using HTTP
 using StructTypes
 using Tables
