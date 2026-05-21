@@ -4,7 +4,7 @@
 # via `cd test/fixtures/cbor/gen && cargo run > ../native.toml`.
 
 using SurrealDB.SurrealCBOR
-using SurrealDB.SurrealCBOR: encode, Tagged, RecordID, Table
+using SurrealDB.SurrealCBOR: encode, Tagged, RecordID, Table, SurrealDecimal
 using UUIDs
 using Test
 using TOML
@@ -88,6 +88,10 @@ const _CASES = Dict{String, Any}(
 
     # L3 typed — TAG_TABLE (7)
     "table_stream"          => Table("stream"),
+
+    # L3 typed — TAG_STRING_DECIMAL (10)
+    "decimal_pi"            => SurrealDecimal("3.14159265"),
+    "decimal_neg"           => SurrealDecimal("-0.5"),
 
     # L3 typed — TAG_RECORDID (8) key variants
     "recordid_int_key"      => RecordID("users", 42),

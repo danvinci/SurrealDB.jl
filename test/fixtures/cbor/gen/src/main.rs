@@ -156,6 +156,10 @@ fn main() {
     // L3 typed: Table = Tag(7, text). Ref convert.rs:188, 413-415
     emit("table_stream", &Value::Tag(7, Box::new(text("stream"))));
 
+    // L3 typed: Decimal = Tag(10, text). Ref convert.rs:116-122, 375-377
+    emit("decimal_pi", &Value::Tag(10, Box::new(text("3.14159265"))));
+    emit("decimal_neg", &Value::Tag(10, Box::new(text("-0.5"))));
+
     // L3 typed: RecordID = Tag(8, [table_text, key]). Ref convert.rs:416-434
     // Key variants matching the polymorphic dispatch in convert.rs:586-599.
     let rid = |table: &str, key: Value| {

@@ -161,6 +161,12 @@ hex = "c6f6"
 ["table_stream"]
 hex = "c76673747265616d"
 
+["decimal_pi"]
+hex = "ca6a332e3134313539323635"
+
+["decimal_neg"]
+hex = "ca642d302e35"
+
 ["recordid_int_key"]
 hex = "c882657573657273182a"
 

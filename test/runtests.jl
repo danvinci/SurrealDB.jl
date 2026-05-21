@@ -114,6 +114,9 @@ end
     _section("CBOR types: Table") do
         @testset "CBOR types: Table" begin include("test_cbor_types_table.jl") end
     end
+    _section("CBOR types: Decimal") do
+        @testset "CBOR types: Decimal" begin include("test_cbor_types_decimal.jl") end
+    end
 
     # --- Server-dependent testsets (gated on SERVER_AVAILABLE) ---
 
