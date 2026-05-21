@@ -59,7 +59,12 @@ println(stderr, "[testset] scalar types"); flush(stderr)
         @test _roundtrip(db, "int_pos", 42) == 42
         @test _roundtrip(db, "int_neg", -123456789) == -123456789
         @test _roundtrip(db, "int_zero", 0) == 0
-        @test _roundtrip(db, "int_large", 9_007_199_254_740_992) == 9_007_199_254_740_992
+        @test _roundtrip(db, "int_2pow53", 9_007_199_254_740_992) == 9_007_199_254_740_992
+        # Above 2^53: JS clients lose precision here, JSON.jl + SurrealDB i64
+        # preserve exactly. Locks in the Julia-side guarantee.
+        @test _roundtrip(db, "int_2pow53_plus_1", 9_007_199_254_740_993) == 9_007_199_254_740_993
+        @test _roundtrip(db, "int_i64_max", typemax(Int64)) == typemax(Int64)
+        @test _roundtrip(db, "int_i64_min", typemin(Int64)) == typemin(Int64)
 
         @test _roundtrip(db, "float_pi", 3.14159) ≈ 3.14159
         @test _roundtrip(db, "float_neg", -2.71828) ≈ -2.71828
