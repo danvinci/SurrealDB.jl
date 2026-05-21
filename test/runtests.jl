@@ -90,6 +90,9 @@ end
     _section("Load resilience") do
         @testset "Load resilience" begin include("test_load_resilience.jl") end
     end
+    _section("MetaGraph") do
+        @testset "MetaGraph" begin include("test_metagraph.jl") end
+    end
 
     # --- Server-dependent testsets (gated on SERVER_AVAILABLE) ---
 
