@@ -84,7 +84,11 @@ jobs:
 
       # Verify the SDK actually completes a TLS handshake end-to-end. Just
       # connecting + running a query is enough to prove wss:// works.
+      # JULIA_DEBUG surfaces per-frame logging from _ws_reader_task — needed
+      # to diagnose post-101 byte arrival when the connect fails.
       - name: Connect via wss:// and run a query
+        env:
+          JULIA_DEBUG: SurrealDB
         run: |
           julia --project=test -e '
             using SurrealDB
