@@ -160,6 +160,14 @@ fn main() {
     emit("decimal_pi", &Value::Tag(10, Box::new(text("3.14159265"))));
     emit("decimal_neg", &Value::Tag(10, Box::new(text("-0.5"))));
 
+    // L3 typed: DateTime = Tag(12, [i64 secs, u32 nanos]). Server canonical.
+    // Ref convert.rs:76-101 (decode), 395-405 (encode).
+    let datetime = |secs: i64, nanos: u32| {
+        Value::Tag(12, Box::new(array(vec![int(secs as i128), int(nanos as i128)])))
+    };
+    emit("datetime_epoch", &datetime(0, 0));
+    emit("datetime_ns", &datetime(1_716_423_296, 123_456_789));
+
     // L3 typed: RecordID = Tag(8, [table_text, key]). Ref convert.rs:416-434
     // Key variants matching the polymorphic dispatch in convert.rs:586-599.
     let rid = |table: &str, key: Value| {

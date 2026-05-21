@@ -47,7 +47,7 @@ export EmbeddedFFIError, ConnectionUnavailableError, UnsupportedEngineError, Uns
 # no upward imports into SurrealDB.* — designed for clean extraction as a
 # standalone package later. Access via SurrealDB.SurrealCBOR.*.
 include("cbor/SurrealCBOR.jl")
-using .SurrealCBOR: RecordID, Table, SurrealDecimal
+using .SurrealCBOR: RecordID, Table, SurrealDecimal, SurrealDateTime
 
 include("errors.jl")
 include("types.jl")

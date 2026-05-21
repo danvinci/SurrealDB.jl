@@ -117,6 +117,9 @@ end
     _section("CBOR types: Decimal") do
         @testset "CBOR types: Decimal" begin include("test_cbor_types_decimal.jl") end
     end
+    _section("CBOR types: DateTime") do
+        @testset "CBOR types: DateTime" begin include("test_cbor_types_datetime.jl") end
+    end
 
     # --- Server-dependent testsets (gated on SERVER_AVAILABLE) ---
 

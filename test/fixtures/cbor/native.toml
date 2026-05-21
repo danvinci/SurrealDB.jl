@@ -167,6 +167,12 @@ hex = "ca6a332e3134313539323635"
 ["decimal_neg"]
 hex = "ca642d302e35"
 
+["datetime_epoch"]
+hex = "cc820000"
+
+["datetime_ns"]
+hex = "cc821a664e8a801a075bcd15"
+
 ["recordid_int_key"]
 hex = "c882657573657273182a"
 
