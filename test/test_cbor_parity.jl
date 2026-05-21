@@ -6,7 +6,10 @@
 using SurrealDB.SurrealCBOR
 using SurrealDB.SurrealCBOR: encode, Tagged, RecordID, Table, SurrealDecimal,
     SurrealDateTime, SurrealDuration, SurrealFile,
-    SurrealRange, BoundIncluded, BoundExcluded
+    SurrealRange, BoundIncluded, BoundExcluded,
+    GeometryPoint, GeometryLine, GeometryPolygon,
+    GeometryMultiPoint, GeometryMultiLine, GeometryMultiPolygon,
+    GeometryCollection
 using UUIDs
 using Test
 using TOML
@@ -126,6 +129,35 @@ const _CASES = Dict{String, Any}(
     "uuid_nil"              => UUID(UInt128(0)),
     "uuid_v4_example"       => UUID("12345678-1234-5678-9012-345678901234"),
     "recordid_uuid_key"     => RecordID("users", UUID("12345678-1234-5678-9012-345678901234")),
+
+    # L3 typed — Geometry hierarchy (88-94)
+    "geom_point"            => GeometryPoint(0.0, 0.0),
+    "geom_line_unit"        => GeometryLine([GeometryPoint(0.0, 0.0), GeometryPoint(1.0, 1.0)]),
+    "geom_polygon_tri"      => GeometryPolygon(GeometryLine([
+                                   GeometryPoint(0.0, 0.0), GeometryPoint(2.0, 0.0),
+                                   GeometryPoint(0.0, 2.0), GeometryPoint(0.0, 0.0)])),
+    "geom_multipoint"       => GeometryMultiPoint([
+                                   GeometryPoint(0.0, 0.0),
+                                   GeometryPoint(1.0, 1.0),
+                                   GeometryPoint(2.0, 0.0)]),
+    "geom_multiline"        => GeometryMultiLine([
+                                   GeometryLine([GeometryPoint(0.0, 0.0), GeometryPoint(1.0, 1.0)]),
+                                   GeometryLine([GeometryPoint(0.0, 0.0), GeometryPoint(2.0, 0.0),
+                                                 GeometryPoint(0.0, 2.0), GeometryPoint(0.0, 0.0)])]),
+    "geom_multipolygon"     => let tri = GeometryLine([
+                                       GeometryPoint(0.0, 0.0), GeometryPoint(2.0, 0.0),
+                                       GeometryPoint(0.0, 2.0), GeometryPoint(0.0, 0.0)])
+                                   GeometryMultiPolygon([GeometryPolygon(tri), GeometryPolygon(tri)])
+                               end,
+    "geom_collection"       => let tri = GeometryLine([
+                                       GeometryPoint(0.0, 0.0), GeometryPoint(2.0, 0.0),
+                                       GeometryPoint(0.0, 2.0), GeometryPoint(0.0, 0.0)])
+                                   GeometryCollection(Any[
+                                       GeometryPoint(0.0, 0.0),
+                                       GeometryLine([GeometryPoint(0.0, 0.0), GeometryPoint(1.0, 1.0)]),
+                                       GeometryPolygon(tri),
+                                   ])
+                               end,
 )
 
 @testset "L2 parity — vs ciborium (Rust server's CBOR crate)" begin

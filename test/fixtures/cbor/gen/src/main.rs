@@ -235,6 +235,41 @@ fn main() {
     // RecordID with UUID key → Tag(8, [text, Tag(37, bytes)]).
     emit("recordid_uuid_key",
          &rid("users", uuid(uuid_example_bytes)));
+
+    // L3 typed: Geometry hierarchy (88-94). Recursive: each tag wraps
+    // an array of the next-level-down tag. Refs convert.rs:194-336 / 457-509.
+    let point = |x: f64, y: f64| {
+        Value::Tag(88, Box::new(array(vec![Value::Float(x), Value::Float(y)])))
+    };
+    let line = |pts: Vec<Value>| Value::Tag(89, Box::new(array(pts)));
+    let polygon = |rings: Vec<Value>| Value::Tag(90, Box::new(array(rings)));
+
+    emit("geom_point", &point(0.0, 0.0));
+    emit("geom_line_unit", &line(vec![point(0.0, 0.0), point(1.0, 1.0)]));
+
+    let tri = line(vec![point(0.0, 0.0), point(2.0, 0.0),
+                        point(0.0, 2.0), point(0.0, 0.0)]);
+    emit("geom_polygon_tri", &polygon(vec![tri.clone()]));
+
+    emit("geom_multipoint", &Value::Tag(91, Box::new(array(vec![
+        point(0.0, 0.0), point(1.0, 1.0), point(2.0, 0.0),
+    ]))));
+
+    emit("geom_multiline", &Value::Tag(92, Box::new(array(vec![
+        line(vec![point(0.0, 0.0), point(1.0, 1.0)]),
+        tri.clone(),
+    ]))));
+
+    emit("geom_multipolygon", &Value::Tag(93, Box::new(array(vec![
+        polygon(vec![tri.clone()]),
+        polygon(vec![tri.clone()]),
+    ]))));
+
+    emit("geom_collection", &Value::Tag(94, Box::new(array(vec![
+        point(0.0, 0.0),
+        line(vec![point(0.0, 0.0), point(1.0, 1.0)]),
+        polygon(vec![tri]),
+    ]))));
 }
 
 
