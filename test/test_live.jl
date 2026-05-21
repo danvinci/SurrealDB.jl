@@ -37,7 +37,6 @@ end
     @test !sub.active
 end
 
-println(stderr, "[testset] Live kill by id"); flush(stderr)
 @testset "Live kill by id" begin
     clean_table!(client, "test_live")
     sub = SurrealDB.live(client, "test_live")
@@ -45,7 +44,6 @@ println(stderr, "[testset] Live kill by id"); flush(stderr)
     @test !sub.active
 end
 
-println(stderr, "[testset] Live with diff option"); flush(stderr)
 @testset "Live with diff option" begin
     clean_table!(client, "test_live")
     sub = SurrealDB.live(client, "test_live"; diff=true)
@@ -55,7 +53,6 @@ println(stderr, "[testset] Live with diff option"); flush(stderr)
     @test !sub.active
 end
 
-println(stderr, "[testset] Live notification on create"); flush(stderr)
 @testset "Live notification on create" begin
     clean_table!(client, "test_live_notif")
     println(stderr, "[notif-create] live..."); flush(stderr)
@@ -75,7 +72,6 @@ println(stderr, "[testset] Live notification on create"); flush(stderr)
     clean_table!(client, "test_live_notif")
 end
 
-println(stderr, "[testset] Live notification on update"); flush(stderr)
 @testset "Live notification on update" begin
     clean_table!(client, "test_live_upd")
     SurrealDB.create(client, "test_live_upd:watch", Dict("val" => 1))
@@ -91,7 +87,6 @@ println(stderr, "[testset] Live notification on update"); flush(stderr)
     clean_table!(client, "test_live_upd")
 end
 
-println(stderr, "[testset] Live notification on delete"); flush(stderr)
 @testset "Live notification on delete" begin
     clean_table!(client, "test_live_del")
     SurrealDB.create(client, "test_live_del:bye", Dict("x" => 1))
@@ -107,7 +102,6 @@ println(stderr, "[testset] Live notification on delete"); flush(stderr)
     clean_table!(client, "test_live_del")
 end
 
-println(stderr, "[testset] Live multiple tables"); flush(stderr)
 @testset "Live multiple tables" begin
     clean_table!(client, "test_live_a")
     clean_table!(client, "test_live_b")
@@ -120,7 +114,6 @@ println(stderr, "[testset] Live multiple tables"); flush(stderr)
     SurrealDB.kill!(sub_b)
 end
 
-println(stderr, "[testset] Live disconnect closes channel"); flush(stderr)
 @testset "Live disconnect closes channel" begin
     clean_table!(client, "test_live_dc")
     sub = SurrealDB.live(client, "test_live_dc")
