@@ -70,6 +70,12 @@ const EXPECTED_EXPORTS = Set([
     :AlreadyExistsError, :InternalError,
     :EmbeddedFFIError, :ConnectionUnavailableError, :UnsupportedEngineError,
     :UnsupportedFeatureError, :UnexpectedResponseError,
+
+    # CBOR wire-format types (re-exported from SurrealDB.SurrealCBOR)
+    :SurrealDecimal, :SurrealDateTime, :SurrealDuration, :SurrealFile,
+    :SurrealRange, :BoundIncluded, :BoundExcluded,
+    :GeometryPoint, :GeometryLine, :GeometryPolygon,
+    :GeometryMultiPoint, :GeometryMultiLine, :GeometryMultiPolygon, :GeometryCollection,
 ])
 
 @testset "public API surface is stable" begin

@@ -35,6 +35,12 @@ export RecordID, Table, SurrealValue
 export RootAuth, NamespaceAuth, ScopedAuth, JwtAuth
 export Relationship, LiveSubscription, LiveNotification
 
+# --- CBOR wire-format types (re-exported from SurrealDB.SurrealCBOR) ---
+export SurrealDecimal, SurrealDateTime, SurrealDuration, SurrealFile
+export SurrealRange, BoundIncluded, BoundExcluded
+export GeometryPoint, GeometryLine, GeometryPolygon
+export GeometryMultiPoint, GeometryMultiLine, GeometryMultiPolygon, GeometryCollection
+
 # --- Errors ---
 export SurrealError, RPCError, ConnectionError
 export ServerError, QueryError, ValidationError, ConfigurationError, ThrownError,
