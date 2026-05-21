@@ -120,6 +120,9 @@ end
     _section("CBOR types: DateTime") do
         @testset "CBOR types: DateTime" begin include("test_cbor_types_datetime.jl") end
     end
+    _section("CBOR types: Duration") do
+        @testset "CBOR types: Duration" begin include("test_cbor_types_duration.jl") end
+    end
 
     # --- Server-dependent testsets (gated on SERVER_AVAILABLE) ---
 

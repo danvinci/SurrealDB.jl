@@ -168,6 +168,14 @@ fn main() {
     emit("datetime_epoch", &datetime(0, 0));
     emit("datetime_ns", &datetime(1_716_423_296, 123_456_789));
 
+    // L3 typed: Duration = Tag(14, [] | [s] | [s, ns]). Compact form,
+    // server canonical. Ref convert.rs:132-155 (decode), 380-393 (encode).
+    let dur = |elems: Vec<Value>| Value::Tag(14, Box::new(array(elems)));
+    emit("duration_zero", &dur(vec![]));
+    emit("duration_1h",   &dur(vec![int(3600)]));
+    emit("duration_1s500ms",
+         &dur(vec![int(1), int(500_000_000)]));
+
     // L3 typed: RecordID = Tag(8, [table_text, key]). Ref convert.rs:416-434
     // Key variants matching the polymorphic dispatch in convert.rs:586-599.
     let rid = |table: &str, key: Value| {

@@ -173,6 +173,15 @@ hex = "cc820000"
 ["datetime_ns"]
 hex = "cc821a664e8a801a075bcd15"
 
+["duration_zero"]
+hex = "ce80"
+
+["duration_1h"]
+hex = "ce81190e10"
+
+["duration_1s500ms"]
+hex = "ce82011a1dcd6500"
+
 ["recordid_int_key"]
 hex = "c882657573657273182a"
 

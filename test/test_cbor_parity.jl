@@ -4,7 +4,8 @@
 # via `cd test/fixtures/cbor/gen && cargo run > ../native.toml`.
 
 using SurrealDB.SurrealCBOR
-using SurrealDB.SurrealCBOR: encode, Tagged, RecordID, Table, SurrealDecimal, SurrealDateTime
+using SurrealDB.SurrealCBOR: encode, Tagged, RecordID, Table, SurrealDecimal,
+    SurrealDateTime, SurrealDuration
 using UUIDs
 using Test
 using TOML
@@ -96,6 +97,11 @@ const _CASES = Dict{String, Any}(
     # L3 typed — TAG_CUSTOM_DATETIME (12)
     "datetime_epoch"        => SurrealDateTime(0, 0),
     "datetime_ns"           => SurrealDateTime(1_716_423_296, 123_456_789),
+
+    # L3 typed — TAG_CUSTOM_DURATION (14)
+    "duration_zero"         => SurrealDuration(0, 0),
+    "duration_1h"           => SurrealDuration(3600, 0),
+    "duration_1s500ms"      => SurrealDuration(1, 500_000_000),
 
     # L3 typed — TAG_RECORDID (8) key variants
     "recordid_int_key"      => RecordID("users", 42),
