@@ -54,13 +54,15 @@ _roundtrip(v) = decode(encode(v))
         @test _enc(Float32(100000.0)) == UInt8[0xfa, 0x47, 0xc3, 0x50, 0x00]
         @test _enc(Float32(3.4028235e38)) == UInt8[0xfa, 0x7f, 0x7f, 0xff, 0xff]
 
-        # Float16
+        # Float16 / canonical-shrink (RFC §4.2.2)
         @test _enc(Float16(0.0))  == UInt8[0xf9, 0x00, 0x00]
         @test _enc(Float16(-0.0)) == UInt8[0xf9, 0x80, 0x00]
         @test _enc(Float16(1.0))  == UInt8[0xf9, 0x3c, 0x00]
         @test _enc(Float16(Inf))  == UInt8[0xf9, 0x7c, 0x00]
-        @test _enc(-Inf64) == UInt8[0xfb, 0xff, 0xf0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
-        @test _enc(NaN64)[1:2]  == UInt8[0xfb, 0x7f]  # NaN bits vary; head + sign+exp fixed
+        # Float64 ±Inf / NaN canonical-shrink to Float16
+        @test _enc(Inf64)  == UInt8[0xf9, 0x7c, 0x00]
+        @test _enc(-Inf64) == UInt8[0xf9, 0xfc, 0x00]
+        @test _enc(NaN64)  == UInt8[0xf9, 0x7e, 0x00]   # canonical NaN pattern
     end
 
     @testset "Simple values / sentinels" begin

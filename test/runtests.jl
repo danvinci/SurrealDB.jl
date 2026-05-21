@@ -99,6 +99,9 @@ end
     _section("CBOR codec (L2)") do
         @testset "CBOR codec (L2)" begin include("test_cbor_codec.jl") end
     end
+    _section("CBOR parity (vs ciborium)") do
+        @testset "CBOR parity (vs ciborium)" begin include("test_cbor_parity.jl") end
+    end
 
     # --- Server-dependent testsets (gated on SERVER_AVAILABLE) ---
 

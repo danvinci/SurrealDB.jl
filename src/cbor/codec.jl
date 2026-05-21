@@ -83,18 +83,28 @@ function encode(io::IO, v::Integer)
     end
 end
 
-# Floats — emit at the precision passed (Float64 matches server)
-function encode(io::IO, v::Float64)
+# Floats — canonical shortest-form encoding (RFC 8949 §4.2.2). Matches
+# ciborium / SurrealDB server behavior: shrink to Float16 / Float32 when
+# the value round-trips bit-exact; else emit Float64. NaN encodes as the
+# canonical 2-byte pattern `0xf9 0x7e 0x00`.
+function encode(io::IO, v::AbstractFloat)
+    if isnan(v)
+        n = write_simple_head(io, AI_FLOAT16)
+        return n + write(io, hton(UInt16(0x7e00)))
+    end
+    v64 = Float64(v)
+    f16 = Float16(v64)
+    if Float64(f16) === v64
+        n = write_simple_head(io, AI_FLOAT16)
+        return n + write(io, hton(reinterpret(UInt16, f16)))
+    end
+    f32 = Float32(v64)
+    if Float64(f32) === v64
+        n = write_simple_head(io, AI_FLOAT32)
+        return n + write(io, hton(reinterpret(UInt32, f32)))
+    end
     n = write_simple_head(io, AI_FLOAT64)
-    return n + write(io, hton(reinterpret(UInt64, v)))
-end
-function encode(io::IO, v::Float32)
-    n = write_simple_head(io, AI_FLOAT32)
-    return n + write(io, hton(reinterpret(UInt32, v)))
-end
-function encode(io::IO, v::Float16)
-    n = write_simple_head(io, AI_FLOAT16)
-    return n + write(io, hton(reinterpret(UInt16, v)))
+    return n + write(io, hton(reinterpret(UInt64, v64)))
 end
 
 # Text (major 3, UTF-8 bytes)
@@ -206,8 +216,11 @@ function _decode_simple(ai::UInt8, arg::UInt64)
     ai == AI_TRUE      && return true
     ai == AI_NULL      && return nothing
     ai == AI_UNDEFINED && return undefined
-    ai == AI_FLOAT16   && return reinterpret(Float16, UInt16(arg))
-    ai == AI_FLOAT32   && return reinterpret(Float32, UInt32(arg))
+    # Floats always promote to Float64 on decode. Matches server's
+    # internal representation (PublicNumber::Float is f64); canonical-
+    # shrink is a wire-level optimization, not a type carrier.
+    ai == AI_FLOAT16   && return Float64(reinterpret(Float16, UInt16(arg)))
+    ai == AI_FLOAT32   && return Float64(reinterpret(Float32, UInt32(arg)))
     ai == AI_FLOAT64   && return reinterpret(Float64, arg)
     ai == AI_INDEFINITE && throw(CBORError("unexpected break code outside indefinite-length collection"))
     # ai 0-19: immediate simple values (rarely used); ai 24: 1-byte simple

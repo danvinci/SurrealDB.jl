@@ -1,0 +1,21 @@
+[package]
+name = "surrealdb-jl-cbor-fixture-gen"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+# Tiny fixture generator: emits (label, hex_bytes) TOML for the Julia
+# CBOR parity test. Source of truth = ciborium 0.2.2 (the same CBOR crate
+# the SurrealDB server uses, pinned in surrealdb/Cargo.toml workspace).
+#
+# To regenerate fixtures:
+#     cd test/fixtures/cbor/gen
+#     cargo run > ../native.toml
+
+[dependencies]
+ciborium = "0.2.2"
+hex = "0.4"
+
+[[bin]]
+name = "gen"
+path = "src/main.rs"
