@@ -13,6 +13,8 @@ module SurrealCBOR
 # Stdlib only. Adding any non-stdlib dep here breaks the extraction path
 # documented in the design doc; enforce via Aqua at the SurrealDB level.
 
+using UUIDs
+
 """
     CBORError(msg)
 
@@ -37,6 +39,7 @@ include("tags.jl")
 include("types/none.jl")
 include("types/recordid.jl")
 include("types/table.jl")
+include("types/uuid.jl")
 
 export CBORError
 export read_head, write_head

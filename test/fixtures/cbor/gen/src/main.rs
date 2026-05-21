@@ -169,6 +169,22 @@ fn main() {
              (text("first"), text("ada")),
              (text("last"), text("lovelace")),
          ])));
+
+    // L3 typed: UUID = Tag(37, 16 raw bytes big-endian).
+    // Ref convert.rs:114 (decode), 407-409 (encode).
+    let uuid = |bytes: Vec<u8>| {
+        assert_eq!(bytes.len(), 16);
+        Value::Tag(37, Box::new(Value::Bytes(bytes)))
+    };
+    let uuid_example_bytes: Vec<u8> = vec![
+        0x12, 0x34, 0x56, 0x78, 0x12, 0x34, 0x56, 0x78,
+        0x90, 0x12, 0x34, 0x56, 0x78, 0x90, 0x12, 0x34,
+    ];
+    emit("uuid_nil", &uuid(vec![0u8; 16]));
+    emit("uuid_v4_example", &uuid(uuid_example_bytes.clone()));
+    // RecordID with UUID key → Tag(8, [text, Tag(37, bytes)]).
+    emit("recordid_uuid_key",
+         &rid("users", uuid(uuid_example_bytes)));
 }
 
 

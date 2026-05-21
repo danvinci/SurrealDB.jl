@@ -108,6 +108,9 @@ end
     _section("CBOR types: RecordID") do
         @testset "CBOR types: RecordID" begin include("test_cbor_types_recordid.jl") end
     end
+    _section("CBOR types: UUID") do
+        @testset "CBOR types: UUID" begin include("test_cbor_types_uuid.jl") end
+    end
 
     # --- Server-dependent testsets (gated on SERVER_AVAILABLE) ---
 

@@ -5,6 +5,7 @@
 
 using SurrealDB.SurrealCBOR
 using SurrealDB.SurrealCBOR: encode, Tagged, RecordID
+using UUIDs
 using Test
 using TOML
 
@@ -90,6 +91,11 @@ const _CASES = Dict{String, Any}(
     "recordid_string_key"   => RecordID("users", "alice"),
     "recordid_array_key"    => RecordID("logs", [2026, 5, 22]),
     "recordid_object_key"   => RecordID("user", Dict("first" => "ada", "last" => "lovelace")),
+
+    # L3 typed — TAG_SPEC_UUID (37)
+    "uuid_nil"              => UUID(UInt128(0)),
+    "uuid_v4_example"       => UUID("12345678-1234-5678-9012-345678901234"),
+    "recordid_uuid_key"     => RecordID("users", UUID("12345678-1234-5678-9012-345678901234")),
 )
 
 @testset "L2 parity — vs ciborium (Rust server's CBOR crate)" begin
