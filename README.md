@@ -10,12 +10,10 @@ Julia client for [SurrealDB](https://surrealdb.com). Talks to a remote
 `surreal` server over WebSocket or HTTP, or runs the database in-process
 via `libsurreal`. Same API for both.
 
-Cross-tested against the [official Go](https://github.com/surrealdb/surrealdb.go)
+Cross-tested against the official [Go](https://github.com/surrealdb/surrealdb.go)
 and [Python](https://github.com/surrealdb/surrealdb.py) SDKs: 12 testsets
-ported from `surrealdb.go/db_test.go` run on every CI cycle, and an
-interop harness writes fixtures from one SDK and reads them with the
-others (Python ↔ Julia, Julia → Go) to catch serialization drift across
-implementations. Tested against SurrealDB v2 and v3.
+ported from `surrealdb.go/db_test.go`, plus an interop harness round-tripping
+fixtures (Python ↔ Julia, Julia → Go). Runs against SurrealDB v2 and v3.
 
 ## Quickstart
 
@@ -44,14 +42,14 @@ SurrealDB.connect("ws://localhost:8000"; ns="test", db="test") do db
 end
 ```
 
-The client is closed in a `finally`, including on exception.
+The client is closed in a `finally`.
 
 ## Connection modes
 
 | URL scheme | Backend | Notes |
 |---|---|---|
 | `ws://`, `wss://` | Remote WS | Live queries, sessions, transactions, ping, auto-reconnect |
-| `http://`, `https://` | Remote HTTP | Stateless. `live()` raises `UnsupportedFeatureError` (method dispatch) |
+| `http://`, `https://` | Remote HTTP | Stateless. `live()` raises `UnsupportedFeatureError` |
 | `mem://` | Embedded | In-memory, in-process via `libsurreal` |
 | `surrealkv://path` | Embedded | File-backed, in-process |
 
@@ -97,7 +95,7 @@ alice = SurrealDB.create(db, User, "user",
                          Dict("name" => "Alice", "age" => 30))
 ```
 
-`RecordID`, `Date{Time}`, `UUID` round-trip automatically. Nested
+`RecordID`, `Date`, `DateTime`, and `UUID` round-trip automatically. Nested
 `Dict`/`Vector` recurse into nested structs.
 
 ## Tables.jl
@@ -125,7 +123,7 @@ end
 SurrealDB.kill!(sub)
 ```
 
-Each notification is a [`LiveNotification`](@ref) with typed fields
+Each notification is a `LiveNotification` with typed fields
 (`action`, `query_id`, `record`, `result`, `session`); it also subtypes
 `AbstractDict` so legacy `n["action"]` access keeps working. After a
 reconnect the SDK re-issues `LIVE SELECT` and overwrites `sub.query_id`
@@ -134,9 +132,12 @@ with the new server-assigned UUID, so caller-held handles keep working.
 ## Running functions
 
 ```julia
-SurrealDB.run(db, "type::is::array", [[1, 2, 3]])  # → true
-SurrealDB.run(db, "fn::greet", ["world"])           # user-defined function
+SurrealDB.run(db, "fn::greet", ["world"])
 ```
+
+`run()` invokes user-defined functions (`fn::*`). Builtin SurrealQL
+functions like `type::is::array` are SQL-only and must go through
+`query()`.
 
 ## Sessions and transactions
 
