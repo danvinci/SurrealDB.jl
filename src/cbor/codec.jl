@@ -129,20 +129,30 @@ function encode(io::IO, v::AbstractVector)
     return n
 end
 
-# Map (major 5) — keys sorted by encoded byte order (RFC §4.2.1)
+# Map (major 5) — keys sorted to match SurrealDB server output.
+#
+# Server convention (convert.rs:651-660): iterates `BTreeMap<String, _>`,
+# which yields keys in raw-String byte-lex order. RFC §4.2.1 prescribes
+# encoded-form sort, but the wire authority is the server — these differ
+# when keys have different lengths sharing a byte prefix (e.g. "first" vs
+# "last": "first" sorts first under raw-string, "last" first under
+# encoded-form because the length-prefix differs).
+#
+# For non-string keys (rare; server rejects non-text keys on decode), we
+# fall back to encoded-form sort — no server convention to match.
 function encode(io::IO, v::AbstractDict)
-    # Encode each pair to per-pair buffers, then sort by key bytes.
-    pairs = Vector{Tuple{Vector{UInt8}, Vector{UInt8}}}(undef, length(v))
+    pairs = Vector{Tuple{Vector{UInt8}, Vector{UInt8}, Vector{UInt8}}}(undef, length(v))
     i = 1
     for (k, val) in v
         kio = IOBuffer(); encode(kio, k); kbytes = take!(kio)
         vio = IOBuffer(); encode(vio, val); vbytes = take!(vio)
-        pairs[i] = (kbytes, vbytes)
+        sort_key = k isa AbstractString ? Vector{UInt8}(codeunits(k)) : kbytes
+        pairs[i] = (sort_key, kbytes, vbytes)
         i += 1
     end
     sort!(pairs; by = first)
     n = write_head(io, MAJOR_MAP, UInt64(length(pairs)))
-    for (kbytes, vbytes) in pairs
+    for (_sort_key, kbytes, vbytes) in pairs
         n += write(io, kbytes)
         n += write(io, vbytes)
     end

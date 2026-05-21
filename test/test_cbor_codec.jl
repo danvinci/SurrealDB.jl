@@ -114,11 +114,12 @@ _roundtrip(v) = decode(encode(v))
         @test _enc(Dict("b" => 2, "a" => 1)) ==
             UInt8[0xa2, 0x61, 0x61, 0x01, 0x61, 0x62, 0x02]
 
-        # Key length affects sort order (shorter encoded key < longer): "b"
-        # encodes to [0x61, 0x62] (2 bytes), "aa" to [0x62, 0x61, 0x61]
-        # (3 bytes); 0x61 < 0x62 so "b" sorts first.
+        # Server-convention sort (raw String bytes, not encoded form):
+        # "aa" (0x61, 0x61) < "b" (0x62) → "aa" emits first. Differs from
+        # strict-RFC encoded-form sort; see codec.jl encode(::AbstractDict)
+        # docstring for rationale.
         @test _enc(Dict("aa" => 2, "b" => 1)) ==
-            UInt8[0xa2, 0x61, 0x62, 0x01, 0x62, 0x61, 0x61, 0x02]
+            UInt8[0xa2, 0x62, 0x61, 0x61, 0x02, 0x61, 0x62, 0x01]
     end
 
     @testset "Tags (passthrough, unregistered)" begin

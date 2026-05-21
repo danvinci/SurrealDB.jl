@@ -4,7 +4,7 @@
 # via `cd test/fixtures/cbor/gen && cargo run > ../native.toml`.
 
 using SurrealDB.SurrealCBOR
-using SurrealDB.SurrealCBOR: encode, Tagged
+using SurrealDB.SurrealCBOR: encode, Tagged, RecordID
 using Test
 using TOML
 
@@ -84,6 +84,12 @@ const _CASES = Dict{String, Any}(
 
     # L3 typed — TAG_NONE (6)
     "none"                  => missing,
+
+    # L3 typed — TAG_RECORDID (8) key variants
+    "recordid_int_key"      => RecordID("users", 42),
+    "recordid_string_key"   => RecordID("users", "alice"),
+    "recordid_array_key"    => RecordID("logs", [2026, 5, 22]),
+    "recordid_object_key"   => RecordID("user", Dict("first" => "ada", "last" => "lovelace")),
 )
 
 @testset "L2 parity — vs ciborium (Rust server's CBOR crate)" begin

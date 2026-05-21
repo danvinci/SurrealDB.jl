@@ -150,11 +150,23 @@ hex = "a201020304"
 hex = "a26161016162820203"
 
 ["map_aa2_b1_sorted"]
-hex = "a261620162616102"
+hex = "a262616102616201"
 
 ["tag_passthrough_text"]
 hex = "d8646178"
 
 ["none"]
 hex = "c6f6"
+
+["recordid_int_key"]
+hex = "c882657573657273182a"
+
+["recordid_string_key"]
+hex = "c88265757365727365616c696365"
+
+["recordid_array_key"]
+hex = "c882646c6f6773831907ea0516"
+
+["recordid_object_key"]
+hex = "c8826475736572a265666972737463616461646c617374686c6f76656c616365"
 

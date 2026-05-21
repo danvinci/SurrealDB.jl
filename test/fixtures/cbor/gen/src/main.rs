@@ -32,7 +32,24 @@ fn array(items: Vec<Value>) -> Value {
     Value::Array(items)
 }
 
-fn map(pairs: Vec<(Value, Value)>) -> Value {
+fn map(mut pairs: Vec<(Value, Value)>) -> Value {
+    // Sort keys to match server output: `convert.rs:651-660` emits maps
+    // via BTreeMap<String,_> iteration (raw-string byte-lex). Mirroring
+    // that here makes fixtures equal what the server actually emits, not
+    // just what an unsorted-input ciborium call produces.
+    pairs.sort_by(|a, b| {
+        let key_bytes = |v: &Value| -> Vec<u8> {
+            match v {
+                Value::Text(s) => s.as_bytes().to_vec(),
+                _ => {
+                    let mut buf = Vec::new();
+                    ciborium::into_writer(v, &mut buf).unwrap();
+                    buf
+                }
+            }
+        };
+        key_bytes(&a.0).cmp(&key_bytes(&b.0))
+    });
     Value::Map(pairs)
 }
 
@@ -135,5 +152,23 @@ fn main() {
 
     // L3 typed: NONE = Tag(6, Null). Ref convert.rs:104,369
     emit("none", &Value::Tag(6, Box::new(Value::Null)));
+
+    // L3 typed: RecordID = Tag(8, [table_text, key]). Ref convert.rs:416-434
+    // Key variants matching the polymorphic dispatch in convert.rs:586-599.
+    let rid = |table: &str, key: Value| {
+        Value::Tag(8, Box::new(array(vec![text(table), key])))
+    };
+    emit("recordid_int_key",
+         &rid("users", int(42)));
+    emit("recordid_string_key",
+         &rid("users", text("alice")));
+    emit("recordid_array_key",
+         &rid("logs", array(vec![int(2026), int(5), int(22)])));
+    emit("recordid_object_key",
+         &rid("user", map(vec![
+             (text("first"), text("ada")),
+             (text("last"), text("lovelace")),
+         ])));
 }
+
 
