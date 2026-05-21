@@ -31,9 +31,12 @@ function _rpc_call_http(client::SurrealClient{<:RemoteHTTPConnection}, method::S
     unlock(conn.lock)
 
     @debug "SurrealDB http RPC →" rid=rid method=effective_method
+    # Mirror WS transport's rpc_timeout: HTTP.jl defaults readtimeout=0 (unbounded),
+    # so a slow/hung server hangs the caller. `Inf` disables (HTTP.jl's 0 sentinel).
+    read_to = isinf(conn.rpc_timeout) ? 0 : max(1, Int(ceil(conn.rpc_timeout)))
     resp = nothing  # JET noticed it could be undefined if HTTP.post throws
     try
-        resp = HTTP.post(url, headers, JSON.json(msg))
+        resp = HTTP.post(url, headers, JSON.json(msg); readtimeout=read_to)
         if resp.status != 200
             throw(ConnectionError("HTTP $(resp.status): $(String(resp.body))"))
         end
