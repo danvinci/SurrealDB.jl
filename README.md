@@ -77,7 +77,7 @@ SurrealDB.invalidate!(db)
 
 If the WebSocket drops mid-session, the SDK re-issues `use ns/db` and
 `authenticate(token)` on reconnect before flipping `status` back to
-`:connected`.
+`STATUS_CONNECTED`.
 
 ## Typed responses (StructTypes.jl)
 
@@ -175,7 +175,7 @@ dicts. The SDK does not auto-coerce results into a graph; call
 ## Errors
 
 ```
-SurrealDBError (alias: SurrealError)
+SurrealError
 ├── ServerError          (server-reported, kind-tagged)
 │   ├── ValidationError      .parameter_name, .is_parse_error
 │   ├── ConfigurationError   .is_live_query_not_supported
@@ -228,12 +228,14 @@ Subscribe to lifecycle:
 ```julia
 ch = SurrealDB.events(db)
 @async for ev in ch
-    @info "lifecycle" event=ev   # :connecting, :connected, :reconnecting, :disconnected
+    @info "lifecycle" event=ev   # STATUS_CONNECTING, STATUS_CONNECTED, STATUS_RECONNECTING, STATUS_DISCONNECTED
 end
 ```
 
-`:connected` fires after state replay (`use!`, `authenticate!`, live
-re-subscription) finishes, not before.
+Events are values of the `ConnectionStatus` enum (exported alongside
+the four `STATUS_*` constants). `STATUS_CONNECTED` fires after state
+replay (`use!`, `authenticate!`, live re-subscription) finishes, not
+before.
 
 ## Debugging
 
