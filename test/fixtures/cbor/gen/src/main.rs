@@ -180,6 +180,13 @@ fn main() {
     emit("file_avatar",
          &Value::Tag(55, Box::new(array(vec![text("avatars"), text("user_42.png")]))));
 
+    // L3 typed: Set = Tag(56, array). Elements sorted by encoded bytes
+    // for deterministic output (matches our Julia encoder).
+    emit("set_int_123",
+         &Value::Tag(56, Box::new(array(vec![int(1), int(2), int(3)]))));
+    emit("set_strings_abc",
+         &Value::Tag(56, Box::new(array(vec![text("a"), text("b"), text("c")]))));
+
     // L3 typed: RecordID = Tag(8, [table_text, key]). Ref convert.rs:416-434
     // Key variants matching the polymorphic dispatch in convert.rs:586-599.
     let rid = |table: &str, key: Value| {

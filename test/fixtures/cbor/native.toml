@@ -185,6 +185,12 @@ hex = "ce82011a1dcd6500"
 ["file_avatar"]
 hex = "d8378267617661746172736b757365725f34322e706e67"
 
+["set_int_123"]
+hex = "d83883010203"
+
+["set_strings_abc"]
+hex = "d83883616161626163"
+
 ["recordid_int_key"]
 hex = "c882657573657273182a"
 

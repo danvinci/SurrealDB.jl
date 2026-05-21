@@ -45,6 +45,7 @@ include("types/decimal.jl")
 include("types/datetime.jl")
 include("types/duration.jl")
 include("types/file.jl")
+include("types/set.jl")
 
 export CBORError
 export read_head, write_head

@@ -106,6 +106,10 @@ const _CASES = Dict{String, Any}(
     # L3 typed — TAG_FILE (55)
     "file_avatar"           => SurrealFile("avatars", "user_42.png"),
 
+    # L3 typed — TAG_SET (56)
+    "set_int_123"           => Set([1, 2, 3]),
+    "set_strings_abc"       => Set(["a", "b", "c"]),
+
     # L3 typed — TAG_RECORDID (8) key variants
     "recordid_int_key"      => RecordID("users", 42),
     "recordid_string_key"   => RecordID("users", "alice"),

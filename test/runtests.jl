@@ -126,6 +126,9 @@ end
     _section("CBOR types: File") do
         @testset "CBOR types: File" begin include("test_cbor_types_file.jl") end
     end
+    _section("CBOR types: Set") do
+        @testset "CBOR types: Set" begin include("test_cbor_types_set.jl") end
+    end
 
     # --- Server-dependent testsets (gated on SERVER_AVAILABLE) ---
 
