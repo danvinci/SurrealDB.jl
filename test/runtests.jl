@@ -96,6 +96,9 @@ end
     _section("CBOR I/O (L1)") do
         @testset "CBOR I/O (L1)" begin include("test_cbor_io.jl") end
     end
+    _section("CBOR codec (L2)") do
+        @testset "CBOR codec (L2)" begin include("test_cbor_codec.jl") end
+    end
 
     # --- Server-dependent testsets (gated on SERVER_AVAILABLE) ---
 

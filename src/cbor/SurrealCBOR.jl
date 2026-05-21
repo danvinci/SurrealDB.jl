@@ -26,6 +26,7 @@ end
 Base.showerror(io::IO, e::CBORError) = print(io, "CBORError: ", e.msg)
 
 include("io.jl")
+include("codec.jl")
 
 export CBORError
 export read_head, write_head
@@ -33,5 +34,6 @@ export MAJOR_UINT, MAJOR_NINT, MAJOR_BYTES, MAJOR_TEXT,
        MAJOR_ARRAY, MAJOR_MAP, MAJOR_TAG, MAJOR_SIMPLE
 export AI_FALSE, AI_TRUE, AI_NULL, AI_UNDEFINED,
        AI_SIMPLE_1B, AI_FLOAT16, AI_FLOAT32, AI_FLOAT64, AI_INDEFINITE
+export encode, decode, Tagged, Undefined, undefined
 
 end # module
