@@ -39,6 +39,19 @@ function _roundtrip(db, id::String, value)
     return row["v"]
 end
 
+# SurrealDB v2 rejects strings containing NUL bytes with "Parse error" at the
+# SurrealQL level (server-side limitation, fixed in v3). Detect once per
+# testset to gate the NUL-byte assertion.
+function _server_is_v2(db)
+    try
+        v = SurrealDB.version(db)
+        ver = v isa NamedTuple ? v.version : string(v)
+        return occursin(r"surrealdb-2\.", ver)
+    catch
+        return false
+    end
+end
+
 println(stderr, "[testset] scalar types"); flush(stderr)
 @testset "scalar types" begin
     db = _rt_client()
@@ -60,9 +73,13 @@ println(stderr, "[testset] scalar types"); flush(stderr)
         @test _roundtrip(db, "str_empty", "") == ""
 
         # NUL bytes — JSON encoders sometimes drop these silently.
+        # v2 SurrealQL parser rejects NUL in strings (Parse error); v3 accepts.
         nul_str = "before\0after"
-        v = _roundtrip(db, "str_nul", nul_str)
-        @test v == nul_str
+        if _server_is_v2(db)
+            @test_throws SurrealDB.ValidationError _roundtrip(db, "str_nul", nul_str)
+        else
+            @test _roundtrip(db, "str_nul", nul_str) == nul_str
+        end
     finally
         _rt_close(db)
     end
