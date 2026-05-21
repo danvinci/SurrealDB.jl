@@ -1,54 +1,14 @@
 # Core data types for SurrealDB.jl
 
-# --- RecordID ---
-
-"""
-    RecordID(table, id)
-
-Represents a SurrealDB record identifier consisting of a table name and an ID.
-
-# Examples
-```julia
-RecordID("user", "abc123")           # table + string id
-RecordID("user", 42)                 # table + integer id
-RecordID("user:abc123")              # parse from string
-```
-"""
-struct RecordID
-    table::String
-    id::Any
-end
-
-function RecordID(s::String)
-    parts = split(s, ":"; limit=2)
-    if length(parts) != 2
-        throw(ArgumentError("Invalid RecordID string: `$s`. Expected format `table:id`"))
-    end
-    return RecordID(parts[1], parts[2])
-end
-
-Base.string(r::RecordID) = "$(r.table):$(r.id)"
-Base.show(io::IO, r::RecordID) = print(io, "RecordID(\"$(r.table):$(r.id)\")")
-Base.print(io::IO, r::RecordID) = print(io, r.table, ":", r.id)
-
-# --- Table ---
-
-"""
-    Table(name)
-
-Represents a SurrealDB table name. Wraps a String for clarity in the API.
-
-# Examples
-```julia
-Table("stream")
-```
-"""
-struct Table
-    name::String
-end
-
-Base.string(t::Table) = t.name
-Base.show(io::IO, t::Table) = print(io, "Table(\"$(t.name)\")")
+# Wire-format Surreal types (RecordID, Table, ...) live under
+# `cbor/types/` per design-cbor-transport.md — substrate-isolated codec
+# layer designed for clean extraction. Re-exported at the SurrealDB
+# level via `using .SurrealCBOR` in SurrealDB.jl so user-facing names
+# resolve unchanged.
+#
+# What stays in this file: auth types, SurrealValue (FFI marshaling),
+# Relationship, LiveSubscription, LiveNotification, ConnectionStatus —
+# none of those cross the CBOR wire as tagged values.
 
 # --- SurrealValue ---
 

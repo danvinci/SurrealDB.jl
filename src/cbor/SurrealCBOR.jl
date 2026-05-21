@@ -30,8 +30,13 @@ include("registry.jl")
 include("codec.jl")
 include("tags.jl")
 
-# L3 tag handlers — each file registers its decoder + defines encode methods
+# L3 wire-format types (under cbor/types/, substrate-isolated). Each
+# file may also register its tag decoder + define encode methods; some
+# (Table) currently ship as type-only and grow CBOR methods alongside
+# their Phase 3 tag work.
 include("types/none.jl")
+include("types/recordid.jl")
+include("types/table.jl")
 
 export CBORError
 export read_head, write_head
@@ -40,6 +45,7 @@ export MAJOR_UINT, MAJOR_NINT, MAJOR_BYTES, MAJOR_TEXT,
 export AI_FALSE, AI_TRUE, AI_NULL, AI_UNDEFINED,
        AI_SIMPLE_1B, AI_FLOAT16, AI_FLOAT32, AI_FLOAT64, AI_INDEFINITE
 export encode, decode, Tagged, Undefined, undefined
+export RecordID, Table
 export TAG_NONE, TAG_TABLE, TAG_RECORDID, TAG_STRING_UUID, TAG_STRING_DECIMAL,
        TAG_CUSTOM_DATETIME, TAG_STRING_DURATION, TAG_CUSTOM_DURATION,
        TAG_SPEC_DATETIME, TAG_SPEC_UUID, TAG_RANGE, TAG_BOUND_INCLUDED,
