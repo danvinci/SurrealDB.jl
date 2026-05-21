@@ -491,6 +491,7 @@ function _normalize_for_construct(::Type{T}, dict) where {T}
     catch e
         # fieldnames/fieldtypes throw on abstract T; anything else is a real bug.
         e isa Union{ArgumentError, MethodError} || rethrow()
+        throw(ArgumentError("cannot deserialize into $T: abstract type has no field layout. Pass a concrete struct type."))
     end
 
     normalized = Dict{String, Any}()
@@ -512,8 +513,15 @@ end
 Coerce a raw value from JSON to the target Julia type.
 """
 function _coerce_value(value, ::Type{<:RecordID})
+    # Heuristic: string-with-colon → RecordID literal. False positives possible
+    # (ISO-8601 timestamps, URIs, etc.); RecordID() can throw on those, so
+    # rescue back to the raw string rather than failing the whole deserialize.
     if value isa String && occursin(':', value)
-        return RecordID(value)
+        try
+            return RecordID(value)
+        catch
+            return value
+        end
     elseif value isa AbstractDict && haskey(value, "tb") && haskey(value, "id")
         return RecordID(string(get(value, "tb", "")), get(value, "id", ""))
     end
@@ -551,10 +559,15 @@ function _coerce_value(value, ::Type{T}) where {T}
     return value
 end
 
-_is_struct_type(::Type{T}) where {T} = try
-    StructTypes.StructType(T) == StructTypes.Struct()
-catch
-    false
+function _is_struct_type(::Type{T}) where {T}
+    try
+        return StructTypes.StructType(T) == StructTypes.Struct()
+    catch e
+        # Only MethodError is expected (T doesn't implement StructType).
+        # Anything else (LoadError, MethodInstance corruption) is a real bug.
+        e isa MethodError || rethrow()
+        return false
+    end
 end
 
 # Typed select
