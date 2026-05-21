@@ -210,7 +210,6 @@ end
               "NotAllowed", "NotFound", "AlreadyExists", "Internal", "Unknown")
         e = _create_server_error(k, "msg")
         @test e isa ServerError
-        @test e isa SurrealDBError
-        @test e isa SurrealError   # alias still works
+        @test e isa SurrealError
     end
 end

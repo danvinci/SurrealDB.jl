@@ -52,7 +52,7 @@ function _rpc_call_http(client::SurrealClient{<:RemoteHTTPConnection}, method::S
         end
         return get(response, "result", nothing)
     catch e
-        if e isa SurrealDBError
+        if e isa SurrealError
             rethrow()
         end
         throw(ConnectionError("HTTP request failed: $e", e))

@@ -35,7 +35,7 @@ export RootAuth, NamespaceAuth, ScopedAuth, JwtAuth
 export Relationship, LiveSubscription, LiveNotification
 
 # --- Errors ---
-export SurrealDBError, SurrealError, RPCError, ConnectionError
+export SurrealError, RPCError, ConnectionError
 export ServerError, QueryError, ValidationError, ConfigurationError, ThrownError,
        SerializationError, NotAllowedError, NotFoundError, AlreadyExistsError, InternalError
 export EmbeddedFFIError, ConnectionUnavailableError, UnsupportedEngineError, UnsupportedFeatureError, UnexpectedResponseError

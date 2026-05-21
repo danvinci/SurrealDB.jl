@@ -40,14 +40,14 @@ end
 
             # Spawn N concurrent queries. Each should either complete
             # normally (server replies via reconnect) or fail with a typed
-            # SurrealDBError. Nothing else is acceptable.
+            # SurrealError. Nothing else is acceptable.
             N = 20
             results = Vector{Any}(undef, N)
             tasks = [Threads.@spawn(begin
                 results[i] = try
                     SurrealDB.query(client, "SELECT * FROM 1")
                 catch e
-                    e isa SurrealDB.SurrealDBError || rethrow()
+                    e isa SurrealDB.SurrealError || rethrow()
                     e
                 end
             end) for i in 1:N]
@@ -81,10 +81,10 @@ end
             end
 
             # Every result is either a successful query response or a typed
-            # SurrealDBError. Nothing else.
+            # SurrealError. Nothing else.
             for r in results
                 ok = r isa AbstractVector || r isa AbstractDict ||
-                     r === nothing || r isa SurrealDB.SurrealDBError
+                     r === nothing || r isa SurrealDB.SurrealError
                 @test ok
             end
         finally
@@ -109,7 +109,7 @@ end
                 results[i] = try
                     SurrealDB.query(client, "SELECT * FROM 1")
                 catch e
-                    e isa SurrealDB.SurrealDBError || rethrow()
+                    e isa SurrealDB.SurrealError || rethrow()
                     e
                 end
             end) for i in 1:N]

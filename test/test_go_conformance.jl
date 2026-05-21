@@ -266,7 +266,7 @@ end
                         Threads.atomic_add!(successes, 1)
                     catch e
                         msg = sprint(showerror, e)
-                        if occursin("does not exist", msg) || e isa SurrealDB.SurrealDBError
+                        if occursin("does not exist", msg) || e isa SurrealDB.SurrealError
                             Threads.atomic_add!(errors, 1)
                         else
                             rethrow()
@@ -376,9 +376,9 @@ end
         end
 
         @testset "invalid query syntax" begin
-            # SELEC instead of SELECT — must raise SurrealDBError, not leak
+            # SELEC instead of SELECT — must raise SurrealError, not leak
             # a non-typed exception.
-            @test_throws SurrealDB.SurrealDBError SurrealDB.query(db, "SELEC * FROM users")
+            @test_throws SurrealDB.SurrealError SurrealDB.query(db, "SELEC * FROM users")
         end
     finally
         _close(db)

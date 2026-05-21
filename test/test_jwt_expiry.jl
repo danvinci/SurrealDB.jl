@@ -2,7 +2,7 @@
 #
 # Goal: assert that when an authenticated session's JWT expires, the next
 # RPC fails with a kind-tagged `NotAllowedError` (not a generic
-# `SurrealDBError` or worse, a silent stale-token request that gets
+# `SurrealError` or worse, a silent stale-token request that gets
 # accepted with the wrong credentials).
 #
 # Strategy: SurrealDB lets us define a SCOPE/ACCESS with a session

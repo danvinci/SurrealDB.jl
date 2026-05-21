@@ -118,7 +118,7 @@ SurrealDB.Relationship
 ## Errors
 
 ```@docs
-SurrealDB.SurrealDBError
+SurrealDB.SurrealError
 SurrealDB.ServerError
 SurrealDB.RPCError
 SurrealDB.QueryError

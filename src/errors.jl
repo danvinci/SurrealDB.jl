@@ -1,18 +1,11 @@
 # Error type hierarchy for SurrealDB.jl
 
 """
-    SurrealDBError
+    SurrealError
 
 Abstract base type for all SurrealDB SDK errors.
 """
-abstract type SurrealDBError <: Exception end
-
-# D1 prep: alias the canonical name `SurrealError` (used by surrealdb.js,
-# surrealdb.py, and the eventual kind-tagged hierarchy in 0.2) to the current
-# `SurrealDBError`. Lets users `catch e::SurrealError` today and stay valid
-# when the rename happens. Both names point to the same abstract type, so
-# `e isa SurrealError` and `e isa SurrealDBError` are equivalent.
-const SurrealError = SurrealDBError
+abstract type SurrealError <: Exception end
 
 """
     RPCError(code, message)
@@ -24,7 +17,7 @@ Fields:
 - `code::Int`: JSON-RPC numeric error code
 - `message::String`: Human-readable error message from the server
 """
-struct RPCError <: SurrealDBError
+struct RPCError <: SurrealError
     code::Int
     message::String
 end
@@ -32,7 +25,7 @@ end
 Base.showerror(io::IO, e::RPCError) = print(io, "RPCError($(e.code)): $(e.message)")
 
 """
-    ServerError <: SurrealDBError
+    ServerError <: SurrealError
 
 Abstract supertype for errors that originated server-side (i.e. the SurrealDB
 engine reported the failure). Mirrors the kind-tagged `ServerError` hierarchy
@@ -53,7 +46,7 @@ Concrete subtypes:
 Catch `ServerError` to handle any server-side failure uniformly; catch a
 specific subtype for kind-aware handling.
 """
-abstract type ServerError <: SurrealDBError end
+abstract type ServerError <: SurrealError end
 
 """
     QueryError(message)
@@ -219,7 +212,7 @@ Fields:
 - `message::String`: Description of the connection failure
 - `cause::Union{Exception, Nothing}`: Underlying exception that caused the failure, if any
 """
-struct ConnectionError <: SurrealDBError
+struct ConnectionError <: SurrealError
     message::String
     cause::Union{Exception, Nothing}
 end
@@ -240,7 +233,7 @@ Fields:
 - `op::String`: the FFI operation that failed (e.g. `"sr_patch_add"`, `"_self_test_layout"`)
 - `message::String`: error message — either propagated from the C library or describing the layout/lookup mismatch
 """
-struct EmbeddedFFIError <: SurrealDBError
+struct EmbeddedFFIError <: SurrealError
     op::String
     message::String
 end
@@ -260,7 +253,7 @@ The client is not connected (or has been closed). Distinct from
 [`ConnectionError`](@ref) which represents transport-level failures during
 an attempt; this is raised for "no connection at all" scenarios.
 """
-struct ConnectionUnavailableError <: SurrealDBError
+struct ConnectionUnavailableError <: SurrealError
     message::String
     ConnectionUnavailableError(message::AbstractString = "No active connection to the database.") = new(String(message))
 end
@@ -272,7 +265,7 @@ Base.showerror(io::IO, e::ConnectionUnavailableError) = print(io, "ConnectionUna
 
 The URL scheme is not recognised. Mirrors the JS SDK's same-named error.
 """
-struct UnsupportedEngineError <: SurrealDBError
+struct UnsupportedEngineError <: SurrealError
     scheme::String
 end
 
@@ -285,7 +278,7 @@ The requested operation is not supported on the current transport (e.g. live
 queries over HTTP). `feature` is a Symbol naming the feature; `transport`
 optionally names the transport that lacks support.
 """
-struct UnsupportedFeatureError <: SurrealDBError
+struct UnsupportedFeatureError <: SurrealError
     feature::Symbol
     transport::Union{Symbol, Nothing}
     UnsupportedFeatureError(feature::Symbol, transport=nothing) = new(feature, transport)
@@ -303,7 +296,7 @@ end
 The server returned a response in an unexpected shape. Used when the wire
 format doesn't match any of the documented response variants.
 """
-struct UnexpectedResponseError <: SurrealDBError
+struct UnexpectedResponseError <: SurrealError
     message::String
 end
 

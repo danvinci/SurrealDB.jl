@@ -60,7 +60,7 @@ const EXPECTED_EXPORTS = Set([
     :to_table, :to_metagraph,
 
     # Errors
-    :SurrealDBError, :SurrealError, :RPCError, :ConnectionError,
+    :SurrealError, :RPCError, :ConnectionError,
     :ServerError, :QueryError, :ValidationError, :ConfigurationError,
     :ThrownError, :SerializationError, :NotAllowedError, :NotFoundError,
     :AlreadyExistsError, :InternalError,

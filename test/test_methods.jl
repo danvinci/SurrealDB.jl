@@ -92,7 +92,7 @@ end
 
 @testset "Create duplicate id" begin
     SurrealDB.create(client, "test_crud:dup_id", Dict("v" => 1))
-    @test_throws SurrealDB.SurrealDBError SurrealDB.create(client, "test_crud:dup_id", Dict("v" => 2))
+    @test_throws SurrealDB.SurrealError SurrealDB.create(client, "test_crud:dup_id", Dict("v" => 2))
 end
 
 @testset "Select nonexistent record" begin

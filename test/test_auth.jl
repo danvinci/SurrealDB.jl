@@ -46,7 +46,7 @@ end
     client = SurrealDB.connect(TEST_URL)
     SurrealDB.use!(client, TEST_NS, TEST_DB)
 
-    @test_throws SurrealDB.SurrealDBError SurrealDB.signin!(client,
+    @test_throws SurrealDB.SurrealError SurrealDB.signin!(client,
         SurrealDB.RootAuth("root", "this_is_not_the_password"))
 
     SurrealDB.close!(client)
@@ -72,7 +72,7 @@ end
     client = SurrealDB.connect(TEST_URL)
     SurrealDB.use!(client, TEST_NS, TEST_DB)
 
-    @test_throws SurrealDB.SurrealDBError SurrealDB.authenticate!(client, "not_a_valid_token_at_all")
+    @test_throws SurrealDB.SurrealError SurrealDB.authenticate!(client, "not_a_valid_token_at_all")
 
     SurrealDB.close!(client)
 end

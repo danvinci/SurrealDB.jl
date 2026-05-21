@@ -2,7 +2,7 @@
 #
 # Goal: assert that for any payload shape — well-formed, malformed, deeply
 # nested, oversized, NUL-byte-laden — the parser entry points either return
-# a typed Julia exception subtype, or raise a SurrealDBError. They must
+# a typed Julia exception subtype, or raise a SurrealError. They must
 # never:
 #   - throw an unrelated exception (e.g. a KeyError or InexactError leaking
 #     out from a missed type guard);
@@ -90,34 +90,34 @@ function _random_query_err(rng::AbstractRNG)
     return item
 end
 
-@testset "_parse_rpc_error: never leaks non-SurrealDBError" begin
+@testset "_parse_rpc_error: never leaks non-SurrealError" begin
     rng = Xoshiro(0x5117_eaceb_a571_e57)
     for _ in 1:1000
         err = _random_rpc_err(rng)
         e = try
             _parse_rpc_error(err)
         catch caught
-            # Anything escaping the parser MUST be a SurrealDBError. A bare
+            # Anything escaping the parser MUST be a SurrealError. A bare
             # KeyError / MethodError leaking out is a real bug.
-            @test caught isa SurrealDBError
+            @test caught isa SurrealError
             continue
         end
         # Returned value must be an exception subtype callers can `throw`.
-        @test e isa SurrealDBError
+        @test e isa SurrealError
     end
 end
 
-@testset "_parse_query_error: never leaks non-SurrealDBError" begin
+@testset "_parse_query_error: never leaks non-SurrealError" begin
     rng = Xoshiro(0xc1eaf_c0fee_eba51)
     for _ in 1:1000
         item = _random_query_err(rng)
         e = try
             _parse_query_error(item)
         catch caught
-            @test caught isa SurrealDBError
+            @test caught isa SurrealError
             continue
         end
-        @test e isa SurrealDBError
+        @test e isa SurrealError
     end
 end
 
@@ -129,7 +129,7 @@ end
         msg isa AbstractString || (msg = string(msg))
         e = _create_server_error(kind, msg; details=_random_value(rng))
         @test e isa SurrealDB.ServerError
-        @test e isa SurrealDBError
+        @test e isa SurrealError
     end
 end
 

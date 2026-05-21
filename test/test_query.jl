@@ -30,7 +30,7 @@ end
 end
 
 @testset "Syntax error" begin
-    @test_throws SurrealDB.SurrealDBError SurrealDB.query(client, "SELEC * FRUM 1")
+    @test_throws SurrealDB.SurrealError SurrealDB.query(client, "SELEC * FRUM 1")
 end
 
 @testset "CREATE with content" begin
@@ -57,7 +57,7 @@ end
         SurrealDB.query(client, "SELECT * FROM certainly_does_not_exist_42")
         @test true  # v2: returned empty
     catch e
-        @test e isa SurrealDB.SurrealDBError  # v3: throws
+        @test e isa SurrealDB.SurrealError  # v3: throws
     end
 end
 

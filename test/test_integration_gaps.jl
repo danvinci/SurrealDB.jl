@@ -306,7 +306,7 @@ end
 # 8. RPC error on invalid query (Go: TestRPCError)
 # ================================================================
 @testset "Valid vs invalid query" begin
-    @test_throws SurrealDB.SurrealDBError SurrealDB.query(client, "SELLECT * FROM 1")
+    @test_throws SurrealDB.SurrealError SurrealDB.query(client, "SELLECT * FROM 1")
     result = SurrealDB.query(client, "SELECT * FROM 1")
     @test length(result) > 0
 end
