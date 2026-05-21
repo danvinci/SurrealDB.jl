@@ -121,14 +121,13 @@ _roundtrip(v) = decode(encode(v))
             UInt8[0xa2, 0x61, 0x62, 0x01, 0x62, 0x61, 0x61, 0x02]
     end
 
-    @testset "Tags (passthrough)" begin
-        # Tagged(0, "2013-03-21T20:04:00Z") — RFC §A example
-        @test _enc(Tagged(UInt64(0), "2013-03-21T20:04:00Z")) ==
-            vcat(UInt8[0xc0],
-                 _enc("2013-03-21T20:04:00Z"))
-
-        # SurrealDB-relevant: NONE = Tag(6, null)
-        @test _enc(Tagged(UInt64(6), nothing)) == UInt8[0xc6, 0xf6]
+    @testset "Tags (passthrough, unregistered)" begin
+        # Use unregistered tag numbers — L3-registered tags (0, 6, 8, 37,
+        # etc.) round-trip via their typed handler, not as Tagged.
+        @test _enc(Tagged(UInt64(100), "x")) ==
+            vcat(UInt8[0xd8, 0x64], _enc("x"))
+        @test _enc(Tagged(UInt64(200), UInt8[1,2,3])) ==
+            vcat(UInt8[0xd8, 0xc8], _enc(UInt8[1,2,3]))
     end
 end
 
@@ -174,13 +173,13 @@ end
         @test _roundtrip(Dict{Any,Any}()) == Dict{Any,Any}()
     end
 
-    @testset "Tagged" begin
-        @test _roundtrip(Tagged(UInt64(0), "x"))  == Tagged(UInt64(0), "x")
-        @test _roundtrip(Tagged(UInt64(6), nothing)) == Tagged(UInt64(6), nothing)
-        @test _roundtrip(Tagged(UInt64(37), UInt8[1,2,3])) == Tagged(UInt64(37), UInt8[1,2,3])
-        # Nested tag
-        @test _roundtrip(Tagged(UInt64(8), ["users", "alice"])) ==
-            Tagged(UInt64(8), Any["users", "alice"])
+    @testset "Tagged passthrough (unregistered)" begin
+        # Unregistered tag numbers round-trip as Tagged. Registered tags
+        # (0, 6, 8, 37, ...) lift to typed values; see test_cbor_types_*.jl.
+        @test _roundtrip(Tagged(UInt64(100), "x"))  == Tagged(UInt64(100), "x")
+        @test _roundtrip(Tagged(UInt64(101), UInt8[1,2,3])) == Tagged(UInt64(101), UInt8[1,2,3])
+        @test _roundtrip(Tagged(UInt64(200), ["a", "b"])) ==
+            Tagged(UInt64(200), Any["a", "b"])
     end
 end
 

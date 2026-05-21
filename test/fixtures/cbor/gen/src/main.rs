@@ -128,10 +128,12 @@ fn main() {
         (text("aa"), int(2)),
     ]));
 
-    // === Tags (passthrough; L2 view) ===
-    emit("tag_0_datetime_string",
-         &Value::Tag(0, Box::new(text("2013-03-21T20:04:00Z"))));
-    // NONE = Tag(6, Null) — the canonical SurrealDB NONE wire form
-    emit("tag_6_none",
-         &Value::Tag(6, Box::new(Value::Null)));
+    // === Tags ===
+    // L2 passthrough — unregistered tag for round-trip via Tagged wrapper
+    emit("tag_passthrough_text",
+         &Value::Tag(100, Box::new(text("x"))));
+
+    // L3 typed: NONE = Tag(6, Null). Ref convert.rs:104,369
+    emit("none", &Value::Tag(6, Box::new(Value::Null)));
 }
+

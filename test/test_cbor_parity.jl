@@ -79,9 +79,11 @@ const _CASES = Dict{String, Any}(
     "map_a1_b23"       => Dict{Any,Any}("a" => 1, "b" => [2, 3]),
     "map_aa2_b1_sorted" => Dict("aa" => 2, "b" => 1),
 
-    # Tagged passthrough
-    "tag_0_datetime_string" => Tagged(UInt64(0), "2013-03-21T20:04:00Z"),
-    "tag_6_none"            => Tagged(UInt64(6), nothing),
+    # L2 passthrough (unregistered tag)
+    "tag_passthrough_text"  => Tagged(UInt64(100), "x"),
+
+    # L3 typed — TAG_NONE (6)
+    "none"                  => missing,
 )
 
 @testset "L2 parity — vs ciborium (Rust server's CBOR crate)" begin

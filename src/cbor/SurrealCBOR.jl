@@ -26,7 +26,12 @@ end
 Base.showerror(io::IO, e::CBORError) = print(io, "CBORError: ", e.msg)
 
 include("io.jl")
+include("registry.jl")
 include("codec.jl")
+include("tags.jl")
+
+# L3 tag handlers — each file registers its decoder + defines encode methods
+include("types/none.jl")
 
 export CBORError
 export read_head, write_head
@@ -35,5 +40,12 @@ export MAJOR_UINT, MAJOR_NINT, MAJOR_BYTES, MAJOR_TEXT,
 export AI_FALSE, AI_TRUE, AI_NULL, AI_UNDEFINED,
        AI_SIMPLE_1B, AI_FLOAT16, AI_FLOAT32, AI_FLOAT64, AI_INDEFINITE
 export encode, decode, Tagged, Undefined, undefined
+export TAG_NONE, TAG_TABLE, TAG_RECORDID, TAG_STRING_UUID, TAG_STRING_DECIMAL,
+       TAG_CUSTOM_DATETIME, TAG_STRING_DURATION, TAG_CUSTOM_DURATION,
+       TAG_SPEC_DATETIME, TAG_SPEC_UUID, TAG_RANGE, TAG_BOUND_INCLUDED,
+       TAG_BOUND_EXCLUDED, TAG_FILE, TAG_SET,
+       TAG_GEOMETRY_POINT, TAG_GEOMETRY_LINE, TAG_GEOMETRY_POLYGON,
+       TAG_GEOMETRY_MULTIPOINT, TAG_GEOMETRY_MULTILINE,
+       TAG_GEOMETRY_MULTIPOLYGON, TAG_GEOMETRY_COLLECTION
 
 end # module

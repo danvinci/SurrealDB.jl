@@ -102,6 +102,9 @@ end
     _section("CBOR parity (vs ciborium)") do
         @testset "CBOR parity (vs ciborium)" begin include("test_cbor_parity.jl") end
     end
+    _section("CBOR types: NONE") do
+        @testset "CBOR types: NONE" begin include("test_cbor_types_none.jl") end
+    end
 
     # --- Server-dependent testsets (gated on SERVER_AVAILABLE) ---
 

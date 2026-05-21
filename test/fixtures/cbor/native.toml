@@ -152,9 +152,9 @@ hex = "a26161016162820203"
 ["map_aa2_b1_sorted"]
 hex = "a261620162616102"
 
-["tag_0_datetime_string"]
-hex = "c074323031332d30332d32315432303a30343a30305a"
+["tag_passthrough_text"]
+hex = "d8646178"
 
-["tag_6_none"]
+["none"]
 hex = "c6f6"
 
