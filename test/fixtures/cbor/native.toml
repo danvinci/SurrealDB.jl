@@ -158,6 +158,9 @@ hex = "d8646178"
 ["none"]
 hex = "c6f6"
 
+["table_stream"]
+hex = "c76673747265616d"
+
 ["recordid_int_key"]
 hex = "c882657573657273182a"
 

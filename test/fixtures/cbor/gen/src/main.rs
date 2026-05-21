@@ -153,6 +153,9 @@ fn main() {
     // L3 typed: NONE = Tag(6, Null). Ref convert.rs:104,369
     emit("none", &Value::Tag(6, Box::new(Value::Null)));
 
+    // L3 typed: Table = Tag(7, text). Ref convert.rs:188, 413-415
+    emit("table_stream", &Value::Tag(7, Box::new(text("stream"))));
+
     // L3 typed: RecordID = Tag(8, [table_text, key]). Ref convert.rs:416-434
     // Key variants matching the polymorphic dispatch in convert.rs:586-599.
     let rid = |table: &str, key: Value| {

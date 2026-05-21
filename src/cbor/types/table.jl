@@ -1,11 +1,6 @@
 # L3 — TAG_TABLE (7): SurrealDB table name.
 #
-# Wire shape: `Tag(7, text)`. Ref: convert.rs:188 (decode), 413 (encode).
-#
-# This file currently defines the Julia type only. The Tag 7 encode /
-# decode handlers land alongside this in a subsequent Phase 3 step;
-# locating the type under `cbor/types/` keeps the substrate boundary
-# clean from the start.
+# Wire shape: `Tag(7, text)`. Ref: convert.rs:188 (decode), 413-415 (encode).
 
 """
     Table(name)
@@ -23,3 +18,20 @@ end
 
 Base.string(t::Table) = t.name
 Base.show(io::IO, t::Table) = print(io, "Table(\"$(t.name)\")")
+Base.:(==)(a::Table, b::Table) = a.name == b.name
+Base.hash(t::Table, h::UInt) = hash(t.name, hash(:Table, h))
+
+# --- CBOR encode / decode ---
+
+function encode(io::IO, t::Table)
+    n = write_head(io, MAJOR_TAG, TAG_TABLE)
+    return n + encode(io, t.name)
+end
+
+function _decode_table(payload)
+    payload isa AbstractString || throw(CBORError(
+        "TAG_TABLE (7) payload must be text; got $(typeof(payload))"))
+    return Table(String(payload))
+end
+
+_register_tag!(TAG_TABLE, _decode_table)
