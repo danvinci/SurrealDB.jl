@@ -8,12 +8,25 @@
 
 Julia client for [SurrealDB](https://surrealdb.com). Talks to a remote
 `surreal` server over WebSocket or HTTP, or runs the database in-process
-via `libsurreal`. Same API for both.
+via `libsurreal`. Same API regardless of backend. Runs against SurrealDB
+v2 and v3.
 
-Cross-tested against the official [Go](https://github.com/surrealdb/surrealdb.go)
-and [Python](https://github.com/surrealdb/surrealdb.py) SDKs: 12 testsets
-ported from `surrealdb.go/db_test.go`, plus an interop harness round-tripping
-fixtures (Python ↔ Julia, Julia → Go). Runs against SurrealDB v2 and v3.
+**Status: alpha.** Pre-1.0. API may break between minor versions
+(`0.x` → `0.(x+1)`). Pin a specific version to avoid breakage between
+bumps.
+
+## Install
+
+Not yet in the General registry. Install via the repo URL, pinned to a
+tagged release:
+
+```julia
+using Pkg
+Pkg.add(url="https://github.com/danvinci/surrealdb", rev="v0.2.0-alpha.1")
+```
+
+For the embedded backend you also need `libsurreal`. See
+[Embedded mode](#embedded-mode) below.
 
 ## Quickstart
 
@@ -53,12 +66,29 @@ The client is closed in a `finally`.
 | `mem://` | Embedded | In-memory, in-process via `libsurreal` |
 | `surrealkv://path` | Embedded | File-backed, in-process |
 
-Embedded mode needs the `libsurreal` shared library:
+The `mem://` and `surrealkv://path` schemes are SDK conventions (not part
+of SurrealDB's wire protocol). They tell `connect()` to load `libsurreal`
+instead of opening a socket.
+
+### Embedded mode
+
+Requires the `libsurreal` shared library. Build it once from
+[`surrealdb/surrealdb.c`](https://github.com/surrealdb/surrealdb.c):
+
+```bash
+julia --project=. deps/build_libsurreal.jl
+```
+
+Needs a Rust toolchain (`cargo`) and ~15 min of build time. The resulting
+`libsurrealdb_c.{so,dylib,dll}` lands at the repo root.
 
 ```julia
-SurrealDB.libsurreal_load!("/path/to/libsurreal.dylib")  # or set $SURREALDB_LIB
+SurrealDB.libsurreal_load!("/path/to/libsurrealdb_c.dylib")  # or set $SURREALDB_LIB
 db = SurrealDB.connect("mem://")
 ```
+
+A JLL package (`libsurrealdb_c_jll`) for one-line install via the registry
+is planned. See [Roadmap](#roadmap).
 
 ## Auth
 
@@ -100,7 +130,8 @@ alice = SurrealDB.create(db, User, "user",
 
 ## Tables.jl
 
-Query results conform to `Tables.jl` (rows and columns):
+Query results conform to `Tables.jl`, so they plug into DataFrames, CSV.jl,
+Arrow.jl, or anything that consumes the Tables interface:
 
 ```julia
 using DataFrames
@@ -109,25 +140,28 @@ df = DataFrame(result)
 ```
 
 `query_one(db, sql)` asserts a single statement and returns one table.
-`query_table(db, sql)` keeps multi-statement boundaries on remote (the
-embedded backend collapses them).
+`query_table(db, sql)` returns one `QueryResultTable` per `;`-separated
+statement on remote. The embedded backend flattens them into a single
+result.
 
 ## Live queries
 
 ```julia
 sub = SurrealDB.live(db, "user")
-@async for n::SurrealDB.LiveNotification in sub
+task = @async for n::SurrealDB.LiveNotification in sub
     @info "live event" action=n.action record=n.record data=n.result
 end
 
-SurrealDB.kill!(sub)
+# Stop the subscription:
+SurrealDB.kill!(sub)   # closes the channel; the @async for-loop exits
+wait(task)
 ```
 
 Each notification is a `LiveNotification` with typed fields
-(`action`, `query_id`, `record`, `result`, `session`); it also subtypes
-`AbstractDict` so legacy `n["action"]` access keeps working. After a
-reconnect the SDK re-issues `LIVE SELECT` and overwrites `sub.query_id`
-with the new server-assigned UUID, so caller-held handles keep working.
+(`action`, `query_id`, `record`, `result`, `session`). It also subtypes
+`AbstractDict`, so `n["action"]` still works. After a reconnect the SDK
+re-issues `LIVE SELECT` and overwrites `sub.query_id` with the new
+server-assigned UUID, so caller-held handles keep working.
 
 ## Running functions
 
@@ -141,6 +175,8 @@ functions like `type::is::array` are SQL-only and must go through
 
 ## Sessions and transactions
 
+For v2 servers, the RPC-level helpers work:
+
 ```julia
 SurrealDB.begin!(db)
 try
@@ -150,7 +186,22 @@ catch
     SurrealDB.cancel!(db)
     rethrow()
 end
+```
 
+For **v3+ remote servers**, the `begin!`/`commit!`/`cancel!` RPC methods
+expect a session-scoped transaction UUID; prefer raw SurrealQL:
+
+```julia
+SurrealDB.query(db, """
+    BEGIN TRANSACTION;
+    CREATE user CONTENT { name: 'Bob' };
+    COMMIT TRANSACTION;
+""")
+```
+
+Session variables (`let!`/`unset!`) work the same way on both:
+
+```julia
 SurrealDB.let!(db, "min_age", 18)
 SurrealDB.query(db, "SELECT * FROM user WHERE age >= \$min_age")
 SurrealDB.unset!(db, "min_age")
@@ -158,19 +209,18 @@ SurrealDB.unset!(db, "min_age")
 
 ## Graph traversal (MetaGraphsNext)
 
-`to_metagraph` loads via a Pkg extension when `MetaGraphsNext` and
-`Graphs` are present:
+Available via a Pkg extension. Loads automatically when `MetaGraphsNext`
+and `Graphs` are present in your environment alongside `SurrealDB`:
 
 ```julia
-using MetaGraphsNext, Graphs
+using SurrealDB, MetaGraphsNext, Graphs
 g = SurrealDB.to_metagraph(db,
         "SELECT id, name FROM user",
         "SELECT id, in, out FROM follows")
 ```
 
 Vertex labels are `RecordID` strings; vertex and edge data are field
-dicts. The SDK does not auto-coerce results into a graph; call
-`to_metagraph` when you want one.
+dicts. The SDK does not auto-coerce results into a graph.
 
 ## Errors
 
@@ -195,6 +245,9 @@ SurrealError
 └── EmbeddedFFIError          .op, .message
 ```
 
+Catch a specific subtype for branch logic, or catch `ServerError` to
+handle any server-side failure uniformly:
+
 ```julia
 try
     SurrealDB.create(db, "user:alice", Dict(...))
@@ -205,7 +258,7 @@ catch e::SurrealDB.ServerError
 end
 ```
 
-The wire-format `kind` field maps to the Julia subtype. Legacy servers
+The wire-format `kind` field maps to the Julia subtype. Older servers
 that emit only a JSON-RPC `code` go through a code-to-kind table.
 
 ## Reconnect
@@ -214,12 +267,13 @@ WebSocket connections auto-reconnect on drop. Tune via `connect` kwargs:
 
 ```julia
 db = SurrealDB.connect("ws://localhost:8000";
-    reconnect = true,            # set false to disable retries
+    reconnect = true,            # false disables retries
     reconnect_max_attempts = 10,
-    reconnect_base_delay = 0.5,  # exponential
+    reconnect_base_delay = 0.5,  # seconds; exponential backoff
     reconnect_max_delay = 30.0,
-    reconnect_jitter = 0.1,      # [0, 1]
-    ping_interval = 30.0,        # 0 disables keepalive
+    reconnect_jitter = 0.1,      # fraction of delay added randomly (0..1)
+    ping_interval = 30.0,        # seconds; 0 disables keepalive
+    rpc_timeout = 30.0,          # seconds; Inf disables per-RPC timeout
 )
 ```
 
@@ -227,15 +281,15 @@ Subscribe to lifecycle:
 
 ```julia
 ch = SurrealDB.events(db)
-@async for ev in ch
-    @info "lifecycle" event=ev   # STATUS_CONNECTING, STATUS_CONNECTED, STATUS_RECONNECTING, STATUS_DISCONNECTED
+@async for ev::SurrealDB.ConnectionStatus in ch
+    @info "lifecycle" event=ev
+    # ev ∈ (STATUS_CONNECTING, STATUS_CONNECTED, STATUS_RECONNECTING, STATUS_DISCONNECTED)
 end
 ```
 
-Events are values of the `ConnectionStatus` enum (exported alongside
-the four `STATUS_*` constants). `STATUS_CONNECTED` fires after state
-replay (`use!`, `authenticate!`, live re-subscription) finishes, not
-before.
+`STATUS_CONNECTED` fires after state replay (`use!`, `authenticate!`, live
+re-subscription) finishes, not before. Observers never see a half-restored
+session.
 
 ## Debugging
 
@@ -252,6 +306,7 @@ RPC traces emit on Julia's `@debug` channel. Enable with
 - Julia 1.9 or newer
 - Remote: SurrealDB server v2.x or v3.x
 - Embedded: `libsurreal` from [`surrealdb/surrealdb.c`](https://github.com/surrealdb/surrealdb.c)
+  (see [Embedded mode](#embedded-mode) for build instructions)
 
 ## Testing
 
@@ -263,9 +318,26 @@ The suite has three layers:
 
 - **Unit** (no network): types, error parser, FFI marshalling,
   reconnect state machine, integration tests against an in-process
-  mock WebSocket server.
+  mock WebSocket server, MetaGraphsNext extension.
 - **Integration** (needs `surreal start --bind 127.0.0.1:8001`):
   connection lifecycle, auth, query, methods, sessions, live queries.
 - **Embedded** (needs `libsurreal`): full FFI roundtrip.
 
 Layers self-skip when their prerequisite is missing.
+
+Also cross-tested against the official
+[Go](https://github.com/surrealdb/surrealdb.go) and
+[Python](https://github.com/surrealdb/surrealdb.py) SDKs: 12 testsets
+ported from `surrealdb.go/db_test.go`, plus an interop harness
+round-tripping fixtures (Python ↔ Julia, Julia → Go).
+
+## Roadmap
+
+- `libsurrealdb_c_jll`: ship pre-built dylibs via Yggdrasil for
+  one-line `Pkg.add` install and CI speedup.
+- CBOR transport: smaller payloads, native Duration/Decimal round-trip.
+- General registry submission once API stabilizes.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
