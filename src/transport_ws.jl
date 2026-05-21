@@ -211,12 +211,10 @@ function _ws_reader_task(conn::RemoteWSConnection)
             # Orphan error: no usable id (JSON-RPC parse errors fire before id is parsed).
             # Signal all in-flight RPCs so they fail fast rather than hang until rpc_timeout.
             err = msg["error"]
-            println(stderr, "[ws orphan error] $(first(raw, 300))")
-            flush(stderr)
+            @warn "SurrealDB ws orphan error frame" raw=first(raw, 300)
             _signal_inflight_with_error!(conn, err)
         else
-            println(stderr, "[ws unrecognized] $(first(raw, 300))")
-            flush(stderr)
+            @warn "SurrealDB ws unrecognized frame" raw=first(raw, 300)
         end
     end
 end
@@ -374,8 +372,7 @@ function _dispatch_notification(conn::RemoteWSConnection, notif)
     params = get(notif, "params", Dict{String, Any}())
     query_id = params isa Dict ? get(params, "id", nothing) : nothing
     if query_id === nothing
-        println(stderr, "[notif dropped: no id] $(notif)")
-        flush(stderr)
+        @warn "SurrealDB ws legacy notification dropped (no id)" notif
         return
     end
     _deliver_to_subscriber!(conn, string(query_id), params)
