@@ -42,6 +42,12 @@ export ServerError, QueryError, ValidationError, ConfigurationError, ThrownError
 export EmbeddedFFIError, ConnectionUnavailableError, UnsupportedEngineError, UnsupportedFeatureError, UnexpectedResponseError
 
 # --- Implementation modules ---
+
+# SurrealCBOR: substrate-isolated CBOR codec submodule. Stdlib-only deps;
+# no upward imports into SurrealDB.* — designed for clean extraction as a
+# standalone package later. Access via SurrealDB.SurrealCBOR.*.
+include("cbor/SurrealCBOR.jl")
+
 include("errors.jl")
 include("types.jl")
 include("connection.jl")
