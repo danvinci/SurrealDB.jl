@@ -1,7 +1,7 @@
 @testset "Connection lifecycle" begin
     client = SurrealDB.connect(TEST_URL)
 
-    @test client.connection.status == :connected
+    @test client.connection.status == SurrealDB.STATUS_CONNECTED
     @test client.namespace === nothing
     @test client.database === nothing
     @test client.token === nothing
@@ -72,5 +72,5 @@ end
 @testset "Status after close" begin
     client = SurrealDB.connect(TEST_URL)
     SurrealDB.close!(client)
-    @test SurrealDB.status(client) == :disconnected
+    @test SurrealDB.status(client) == SurrealDB.STATUS_DISCONNECTED
 end

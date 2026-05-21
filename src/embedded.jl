@@ -19,16 +19,16 @@ Base.@kwdef mutable struct EmbeddedConnection <: AbstractConnection
     handle::Ptr{Cvoid}
     "Original URL string the connection was created with — `mem://`, `surrealkv://path`, etc."
     path::String
-    "Lifecycle: `:connected` / `:disconnected` / `:connecting`"
-    status::Symbol
+    "Lifecycle: `STATUS_CONNECTED` / `STATUS_DISCONNECTED` / `STATUS_CONNECTING`"
+    status::SurrealDB.ConnectionStatus
     "Guards `handle` and `live_streams` against concurrent access from CRUD tasks"
     lock::ReentrantLock
     "live query_id → stream handle (sr_stream_t*) — passed to sr_stream_next/sr_stream_kill"
     live_streams::Dict{String, Ptr{Cvoid}}
     "live query_id → LiveSubscription handle — used by `kill!(client, qid)` to flip caller-held state"
     live_handles::Dict{String, LiveSubscription} = Dict{String, LiveSubscription}()
-    "Lifecycle-event Channel (mirrors `RemoteConnection.events`). Embedded fires `:connected` once on successful connect and `:disconnected` once on close; no `:reconnecting` because there's no retry loop."
-    events::Channel{Symbol} = Channel{Symbol}(8)
+    "Lifecycle-event Channel (mirrors `RemoteConnection.events`). Embedded fires `STATUS_CONNECTED` once on successful connect and `STATUS_DISCONNECTED` once on close; no `STATUS_RECONNECTING` because there's no retry loop."
+    events::Channel{SurrealDB.ConnectionStatus} = Channel{SurrealDB.ConnectionStatus}(8)
 end
 
 function Base.show(io::IO, conn::EmbeddedConnection)
@@ -36,7 +36,7 @@ function Base.show(io::IO, conn::EmbeddedConnection)
 end
 
 # Best-effort emit; never blocks the caller. Mirrors `_set_status!` for remote.
-function _emit_embedded_event!(conn::EmbeddedConnection, ev::Symbol)
+function _emit_embedded_event!(conn::EmbeddedConnection, ev::SurrealDB.ConnectionStatus)
     @async try
         isopen(conn.events) && put!(conn.events, ev)
     catch e
@@ -52,7 +52,7 @@ function embedded_connect(url::String)::EmbeddedConnection
     conn = EmbeddedConnection(
         handle=C_NULL,
         path=url,
-        status=:connecting,
+        status=SurrealDB.STATUS_CONNECTING,
         lock=ReentrantLock(),
         live_streams=Dict{String, Ptr{Cvoid}}(),
         live_handles=Dict{String, LiveSubscription}()
@@ -69,18 +69,18 @@ function SurrealDB._connect_embedded!(conn::EmbeddedConnection, url::String)
             endpoint = "mem://"
         end
         conn.handle = LibSurreal.sr_connect(endpoint)
-        conn.status = :connected
+        conn.status = SurrealDB.STATUS_CONNECTED
     finally
         unlock(conn.lock)
     end
-    _emit_embedded_event!(conn, :connected)
+    _emit_embedded_event!(conn, SurrealDB.STATUS_CONNECTED)
     return nothing
 end
 
 # --- Close ---
 
 function SurrealDB._close_backend!(conn::EmbeddedConnection)
-    was_connected = conn.status == :connected
+    was_connected = conn.status == SurrealDB.STATUS_CONNECTED
     lock(conn.lock)
     try
         for (_, stream) in conn.live_streams
@@ -91,12 +91,12 @@ function SurrealDB._close_backend!(conn::EmbeddedConnection)
             LibSurreal.sr_disconnect(conn.handle)
             conn.handle = C_NULL
         end
-        conn.status = :disconnected
+        conn.status = SurrealDB.STATUS_DISCONNECTED
     finally
         unlock(conn.lock)
     end
     if was_connected
-        _emit_embedded_event!(conn, :disconnected)
+        _emit_embedded_event!(conn, SurrealDB.STATUS_DISCONNECTED)
         try; close(conn.events); catch; end
     end
     return nothing

@@ -36,6 +36,25 @@ e.g. `live(client::SurrealClient{<:RemoteWSConnection}, ...)`.
 # --- Remote connection ---
 
 """
+    ConnectionStatus
+
+Connection lifecycle states. Used by [`RemoteConnection.status`](@ref), the
+[`events`](@ref) channel, and [`status`](@ref).
+
+Values:
+- `STATUS_DISCONNECTED`: no active session (initial state, or after `close!`).
+- `STATUS_CONNECTING`: first-ever connect attempt in progress.
+- `STATUS_CONNECTED`: session established; RPCs can flow.
+- `STATUS_RECONNECTING`: lost session, reconnect loop attempting recovery.
+"""
+@enum ConnectionStatus::UInt8 begin
+    STATUS_DISCONNECTED
+    STATUS_CONNECTING
+    STATUS_CONNECTED
+    STATUS_RECONNECTING
+end
+
+"""
     RemoteConnection(url)
 
 A remote connection to a SurrealDB server via WebSocket or HTTP.
@@ -55,8 +74,8 @@ Base.@kwdef mutable struct RemoteConnection{P} <: AbstractRemoteConnection
     lock::ReentrantLock = ReentrantLock()
     "Monotonic counter for JSON-RPC request ids"
     request_id::Int = 0
-    "Lifecycle: `:disconnected` / `:connecting` / `:connected` / `:reconnecting`"
-    status::Symbol = :disconnected
+    "Lifecycle: `STATUS_DISCONNECTED` / `STATUS_CONNECTING` / `STATUS_CONNECTED` / `STATUS_RECONNECTING`"
+    status::ConnectionStatus = STATUS_DISCONNECTED
     "request_id → response Channel; reader task delivers responses via these"
     response_channels::Dict{Int, Channel} = Dict{Int, Channel}()
     "Writer task drains this channel and writes to the WS socket; `nothing` until first connect"
@@ -90,8 +109,8 @@ Base.@kwdef mutable struct RemoteConnection{P} <: AbstractRemoteConnection
     pinger_task::Union{Task, Nothing} = nothing
     "Active pinger Timer; closed by `_stop_pinger!` to interrupt the in-flight `wait` and exit the loop"
     pinger_timer::Union{Timer, Nothing} = nothing
-    "Lifecycle-event Channel — emits `:connecting` / `:connected` / `:reconnecting` / `:disconnected` / `:error` symbols on state transitions. Subscribe via [`events`](@ref). Drop-in compatible with the JS SDK's `subscribe('connected', ...)` pattern."
-    events::Channel{Symbol} = Channel{Symbol}(64)
+    "Lifecycle-event Channel — emits `STATUS_CONNECTING` / `STATUS_CONNECTED` / `STATUS_RECONNECTING` / `STATUS_DISCONNECTED` `ConnectionStatus` values on state transitions. Subscribe via [`events`](@ref). Drop-in compatible with the JS SDK's `subscribe('connected', ...)` pattern."
+    events::Channel{ConnectionStatus} = Channel{ConnectionStatus}(64)
     "Last exception observed by the reconnect loop. Used to surface a meaningful cause when `connect()` times out instead of a bare \"Failed to connect\" string."
     last_error::Union{Exception, Nothing} = nothing
     "Whether to verify TLS certificates on `wss://` connections. Default `true`. Set to `false` for self-signed certs in test/CI environments — never disable in production."
@@ -185,13 +204,13 @@ end
 # --- WebSocket connect with reconnection ---
 
 """
-    _set_status!(conn::RemoteConnection, status::Symbol)
+    _set_status!(conn::RemoteConnection, status::ConnectionStatus)
 
 Update `conn.status` and emit a lifecycle event on `conn.events` when the
 status actually changes. Best-effort emission via `@async`: full or closed
 channels never block the caller.
 """
-function _set_status!(conn::RemoteConnection, status::Symbol)
+function _set_status!(conn::RemoteConnection, status::ConnectionStatus)
     old = conn.status
     conn.status = status
     if old != status
@@ -205,7 +224,7 @@ function _set_status!(conn::RemoteConnection, status::Symbol)
 end
 
 function _connect_remote!(conn::RemoteHTTPConnection)
-    _set_status!(conn, :connected)
+    _set_status!(conn, STATUS_CONNECTED)
     return nothing
 end
 
@@ -218,7 +237,7 @@ end
 
 function _close_remote!(conn::RemoteConnection)
     conn.reconnect = false
-    _set_status!(conn, :disconnected)
+    _set_status!(conn, STATUS_DISCONNECTED)
     # _stop_pinger! has no method for HTTP — short-circuit here.
     if conn isa RemoteHTTPConnection
         return nothing
@@ -389,10 +408,10 @@ function connect(url::String;
         _connect_remote!(conn)
         if is_ws
             for _ in 1:50
-                conn.status == :connected && break
+                conn.status == STATUS_CONNECTED && break
                 sleep(0.05)
             end
-            if conn.status != :connected
+            if conn.status != STATUS_CONNECTED
                 cause = conn.last_error
                 msg = cause === nothing ?
                     "Failed to connect to $ws_url" :
@@ -444,19 +463,19 @@ end
 """
     status(client::SurrealClient)
 
-Return the current connection status as a Symbol:
-`:connected`, `:disconnected`, `:connecting`, `:reconnecting`
+Return the current connection status as a `ConnectionStatus`:
+`STATUS_CONNECTED`, `STATUS_DISCONNECTED`, `STATUS_CONNECTING`, `STATUS_RECONNECTING`
 """
 function status(client::SurrealClient{C}) where {C<:AbstractConnection}
     return client.connection.status
 end
 
 """
-    events(client::SurrealClient{<:AbstractRemoteConnection}) -> Channel{Symbol}
+    events(client::SurrealClient{<:AbstractRemoteConnection}) -> Channel{ConnectionStatus}
 
-Return a Channel that emits lifecycle event symbols on remote-connection
-state transitions: `:connecting`, `:connected`, `:reconnecting`,
-`:disconnected`. Drop-in equivalent of the JS SDK's
+Return a Channel that emits `ConnectionStatus` values on remote-connection
+state transitions: `STATUS_CONNECTING`, `STATUS_CONNECTED`, `STATUS_RECONNECTING`,
+`STATUS_DISCONNECTED`. Drop-in equivalent of the JS SDK's
 `db.subscribe('connected', ...)` pattern. Best-effort emission — if no
 consumer drains the channel, events are queued (capacity 64) and dropped
 silently when the buffer is full.
@@ -478,7 +497,7 @@ function events(client::SurrealClient{C}) where {C<:AbstractRemoteConnection}
 end
 
 # Embedded connections have a simpler lifecycle (no reconnect loop) but still
-# emit `:connected` on connect and `:disconnected` on close so transport-
+# emit STATUS_CONNECTED on connect and STATUS_DISCONNECTED on close so transport-
 # agnostic code can rely on a uniform event stream regardless of backend.
 function events(client::SurrealClient{C}) where {C<:AbstractConnection}
     return client.connection.events

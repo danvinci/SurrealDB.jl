@@ -7,41 +7,41 @@
 
 @testset "_set_status! emits lifecycle events" begin
     conn = SurrealDB.RemoteWSConnection(url="ws://localhost:0/rpc",
-                                        events=Channel{Symbol}(8))
-    SurrealDB._set_status!(conn, :connecting)
-    SurrealDB._set_status!(conn, :connected)
-    SurrealDB._set_status!(conn, :reconnecting)
-    SurrealDB._set_status!(conn, :disconnected)
+                                        events=Channel{SurrealDB.ConnectionStatus}(8))
+    SurrealDB._set_status!(conn, SurrealDB.STATUS_CONNECTING)
+    SurrealDB._set_status!(conn, SurrealDB.STATUS_CONNECTED)
+    SurrealDB._set_status!(conn, SurrealDB.STATUS_RECONNECTING)
+    SurrealDB._set_status!(conn, SurrealDB.STATUS_DISCONNECTED)
     # The async puts may take a moment; spin briefly
     sleep(0.1)
-    received = Symbol[]
+    received = SurrealDB.ConnectionStatus[]
     while isready(conn.events)
         push!(received, take!(conn.events))
     end
-    @test received == [:connecting, :connected, :reconnecting, :disconnected]
+    @test received == [SurrealDB.STATUS_CONNECTING, SurrealDB.STATUS_CONNECTED, SurrealDB.STATUS_RECONNECTING, SurrealDB.STATUS_DISCONNECTED]
 end
 
 @testset "_set_status! deduplicates same-state transitions" begin
     conn = SurrealDB.RemoteWSConnection(url="ws://localhost:0/rpc",
-                                        events=Channel{Symbol}(8))
-    SurrealDB._set_status!(conn, :connected)
-    SurrealDB._set_status!(conn, :connected)  # no-op
-    SurrealDB._set_status!(conn, :connected)  # no-op
+                                        events=Channel{SurrealDB.ConnectionStatus}(8))
+    SurrealDB._set_status!(conn, SurrealDB.STATUS_CONNECTED)
+    SurrealDB._set_status!(conn, SurrealDB.STATUS_CONNECTED)  # no-op
+    SurrealDB._set_status!(conn, SurrealDB.STATUS_CONNECTED)  # no-op
     sleep(0.1)
-    received = Symbol[]
+    received = SurrealDB.ConnectionStatus[]
     while isready(conn.events)
         push!(received, take!(conn.events))
     end
-    @test received == [:connected]  # only the first transition emits
+    @test received == [SurrealDB.STATUS_CONNECTED]  # only the first transition emits
 end
 
 @testset "_set_status! never blocks on closed events channel" begin
     conn = SurrealDB.RemoteWSConnection(url="ws://localhost:0/rpc",
-                                        events=Channel{Symbol}(1))
+                                        events=Channel{SurrealDB.ConnectionStatus}(1))
     close(conn.events)
     # Should not throw or block
-    SurrealDB._set_status!(conn, :connecting)
-    @test conn.status == :connecting
+    SurrealDB._set_status!(conn, SurrealDB.STATUS_CONNECTING)
+    @test conn.status == SurrealDB.STATUS_CONNECTING
 end
 
 @testset "events(client) returns the right channel for each transport" begin
@@ -59,21 +59,21 @@ end
     # Embedded: per-instance channel, not a shared sentinel. Drive the event
     # helper directly so we don't need libsurreal loaded for this assertion.
     conn_emb = SurrealDB.EmbeddedConnection(handle=C_NULL, path="mem://",
-                                            status=:disconnected,
+                                            status=SurrealDB.STATUS_DISCONNECTED,
                                             lock=ReentrantLock(),
                                             live_streams=Dict{String, Ptr{Cvoid}}())
     client_emb = SurrealDB.SurrealClient(conn_emb, nothing, nothing, nothing, Dict{String, Any}())
     @test SurrealDB.events(client_emb) === conn_emb.events
     @test isopen(SurrealDB.events(client_emb))
 
-    SurrealDB.Embedded._emit_embedded_event!(conn_emb, :connected)
+    SurrealDB.Embedded._emit_embedded_event!(conn_emb, SurrealDB.STATUS_CONNECTED)
     # Best-effort emission is async; wait briefly.
     deadline = time() + 1.0
     while time() < deadline && !isready(conn_emb.events)
         sleep(0.02)
     end
     @test isready(conn_emb.events)
-    @test take!(conn_emb.events) == :connected
+    @test take!(conn_emb.events) == SurrealDB.STATUS_CONNECTED
 end
 
 @testset "_stop_pinger! is idempotent and safe on a never-started pinger" begin
@@ -132,7 +132,7 @@ end
     ws = SurrealDB.RemoteWSConnection()
     @test ws isa SurrealDB.RemoteConnection{:ws}
     @test ws isa SurrealDB.AbstractRemoteConnection
-    @test ws.status == :disconnected
+    @test ws.status == SurrealDB.STATUS_DISCONNECTED
     @test ws.reconnect == true
     @test ws.reconnect_max_attempts == 10
     @test ws.ping_interval == 30.0

@@ -57,7 +57,7 @@ end
             MockWS.force_drop!(mock)
 
             # Reconnect should bring us back; verify status flips back.
-            @test _wait_until(() -> client.connection.status == :connected;
+            @test _wait_until(() -> client.connection.status == SurrealDB.STATUS_CONNECTED;
                               timeout_s=5.0)
 
             # Wait for all tasks to settle. None may hang past the
@@ -117,8 +117,8 @@ end
             sleep(0.05)
             MockWS.force_drop!(mock)
 
-            # Without reconnect, status goes :disconnected and stays.
-            @test _wait_until(() -> client.connection.status == :disconnected;
+            # Without reconnect, status goes STATUS_DISCONNECTED and stays.
+            @test _wait_until(() -> client.connection.status == SurrealDB.STATUS_DISCONNECTED;
                               timeout_s=3.0)
 
             # All tasks must terminate (no hangs).

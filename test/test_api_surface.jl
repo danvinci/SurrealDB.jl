@@ -16,6 +16,10 @@ const EXPECTED_EXPORTS = Set([
     # Module
     :SurrealDB,
 
+    # Connection status enum
+    :ConnectionStatus,
+    :STATUS_DISCONNECTED, :STATUS_CONNECTING, :STATUS_CONNECTED, :STATUS_RECONNECTING,
+
     # Core types
     :AbstractConnection, :RemoteConnection, :EmbeddedConnection,
     :SurrealClient, :SurrealSession,

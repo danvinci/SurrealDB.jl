@@ -31,7 +31,7 @@ end
     try
         client = SurrealDB.connect("ws://127.0.0.1:$(mock.port)")
         try
-            @test client.connection.status == :connected
+            @test client.connection.status == SurrealDB.STATUS_CONNECTED
             SurrealDB.use!(client, "ns", "db")
             @test "use" in MockWS.methods_seen(mock)
         finally
@@ -49,14 +49,14 @@ end
         captured = Ref{Any}(nothing)
         result = SurrealDB.connect("ws://127.0.0.1:$(mock.port)") do db
             captured[] = db
-            @test db.connection.status == :connected
+            @test db.connection.status == SurrealDB.STATUS_CONNECTED
             SurrealDB.use!(db, "ns", "db")
             42
         end
         @test result == 42
         # Client was closed inside the block.
         @test captured[] !== nothing
-        @test captured[].connection.status == :disconnected
+        @test captured[].connection.status == SurrealDB.STATUS_DISCONNECTED
     finally
         MockWS.stop_mock!(mock)
     end
@@ -72,7 +72,7 @@ end
         end
         # Block threw, but client was still closed.
         @test captured[] !== nothing
-        @test captured[].connection.status == :disconnected
+        @test captured[].connection.status == SurrealDB.STATUS_DISCONNECTED
     finally
         MockWS.stop_mock!(mock)
     end
@@ -104,7 +104,7 @@ end
             ok = _wait_until(() -> MockWS.upgrade_count(mock) > initial_upgrades;
                               timeout_s=3.0)
             @test ok
-            @test _wait_until(() -> client.connection.status == :connected;
+            @test _wait_until(() -> client.connection.status == SurrealDB.STATUS_CONNECTED;
                               timeout_s=3.0)
 
             # _reconnect_apply_state! should have re-issued `use` + `authenticate`
@@ -137,7 +137,7 @@ end
 
             # Status moves to :disconnected (loop exits), no second upgrade.
             @test _wait_until(timeout_s=2.0) do
-                client.connection.status == :disconnected
+                client.connection.status == SurrealDB.STATUS_DISCONNECTED
             end
             @test MockWS.upgrade_count(mock) == initial_upgrades
         finally
@@ -192,7 +192,7 @@ end
 
             @test _wait_until(timeout_s=3.0) do
                 MockWS.upgrade_count(mock) > initial_upgrades &&
-                    client.connection.status == :connected
+                    client.connection.status == SurrealDB.STATUS_CONNECTED
             end
 
             # _reconnect_apply_state! re-issues `live`; the new server-assigned
@@ -240,7 +240,7 @@ end
         client.connection.reconnect_jitter = 0.0
         ch = SurrealDB.events(client)
         try
-            seen = Symbol[]
+            seen = SurrealDB.ConnectionStatus[]
             collector = @async try
                 while isopen(ch)
                     ev = take!(ch)
@@ -251,13 +251,13 @@ end
 
             MockWS.force_drop!(mock)
             @test _wait_until(timeout_s=3.0) do
-                client.connection.status == :connected &&
-                    :reconnecting in seen
+                client.connection.status == SurrealDB.STATUS_CONNECTED &&
+                    SurrealDB.STATUS_RECONNECTING in seen
             end
 
-            # Drop+reconnect should produce :reconnecting and a new :connected.
-            @test :reconnecting in seen
-            @test count(==(:connected), seen) >= 1
+            # Drop+reconnect should produce STATUS_RECONNECTING and a new STATUS_CONNECTED.
+            @test SurrealDB.STATUS_RECONNECTING in seen
+            @test count(==(SurrealDB.STATUS_CONNECTED), seen) >= 1
         finally
             try; SurrealDB.close!(client); catch; end
         end

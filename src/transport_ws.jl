@@ -2,7 +2,7 @@
 
 function _ws_reconnect_loop(conn::RemoteWSConnection)
     # `attempt`: consecutive failures for backoff; resets on success.
-    # `ever_connected`: true once any session established — gates :reconnecting emit and retry logic.
+    # `ever_connected`: true once any session established — gates STATUS_RECONNECTING emit and retry logic.
     attempt = 0
     ever_connected = false
 
@@ -16,7 +16,7 @@ function _ws_reconnect_loop(conn::RemoteWSConnection)
 
         # Backoff before any attempt that isn't the very first.
         if ever_connected || attempt > 0
-            _set_status!(conn, :reconnecting)
+            _set_status!(conn, STATUS_RECONNECTING)
             if attempt > 0
                 delay = min(conn.reconnect_base_delay * (2.0 ^ (attempt - 1)),
                             conn.reconnect_max_delay)
@@ -48,10 +48,10 @@ function _ws_reconnect_loop(conn::RemoteWSConnection)
                 writer = @async _ws_writer_task(conn)
                 reader = @async _ws_reader_task(conn)
 
-                # Replay before :connected so observers see a fully-restored session.
+                # Replay before STATUS_CONNECTED so observers see a fully-restored session.
                 _reconnect_apply_state!(conn)
 
-                _set_status!(conn, :connected)
+                _set_status!(conn, STATUS_CONNECTED)
                 _start_pinger!(conn)
 
                 try; wait(reader); catch; end
@@ -72,7 +72,7 @@ function _ws_reconnect_loop(conn::RemoteWSConnection)
     end
 
     _stop_pinger!(conn)
-    _set_status!(conn, :disconnected)
+    _set_status!(conn, STATUS_DISCONNECTED)
     conn.ws = nothing
     _teardown_channels!(conn)
     return nothing
@@ -275,7 +275,7 @@ function _start_pinger!(conn::RemoteWSConnection)
     interval > 0 || return nothing  # 0 disables ping
     conn.pinger_task = @async begin
         try
-            while conn.status == :connected
+            while conn.status == STATUS_CONNECTED
                 # Use a Timer so `_stop_pinger!` can interrupt the wait
                 # immediately by closing the timer (otherwise we'd block up to
                 # `ping_interval` seconds before noticing the shutdown).
@@ -287,7 +287,7 @@ function _start_pinger!(conn::RemoteWSConnection)
                     e isa EOFError && break
                     rethrow()
                 end
-                conn.status == :connected || break
+                conn.status == STATUS_CONNECTED || break
                 try
                     if client !== nothing
                         _rpc_call(client, "ping", Any[])
@@ -403,7 +403,7 @@ function _rpc_call_ws(client::SurrealClient{<:RemoteWSConnection}, method::Strin
         end
 
         if !registered
-            if attempt < max_retries && conn.status == :reconnecting
+            if attempt < max_retries && conn.status == STATUS_RECONNECTING
                 sleep(0.5)
                 continue
             end

@@ -16,14 +16,14 @@ end
 
 @testset "Connect / close / status" begin
     db = SurrealDB.connect("mem://")
-    @test SurrealDB.status(db) == :connected
+    @test SurrealDB.status(db) == SurrealDB.STATUS_CONNECTED
     SurrealDB.close!(db)
-    @test SurrealDB.status(db) == :disconnected
+    @test SurrealDB.status(db) == SurrealDB.STATUS_DISCONNECTED
 end
 
 @testset "use!" begin
     db = _fresh_client()
-    @test SurrealDB.status(db) == :connected
+    @test SurrealDB.status(db) == SurrealDB.STATUS_CONNECTED
     SurrealDB.close!(db)
 end
 
