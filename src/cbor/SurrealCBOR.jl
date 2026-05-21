@@ -46,6 +46,7 @@ include("types/datetime.jl")
 include("types/duration.jl")
 include("types/file.jl")
 include("types/set.jl")
+include("types/range.jl")
 
 export CBORError
 export read_head, write_head
@@ -55,6 +56,7 @@ export AI_FALSE, AI_TRUE, AI_NULL, AI_UNDEFINED,
        AI_SIMPLE_1B, AI_FLOAT16, AI_FLOAT32, AI_FLOAT64, AI_INDEFINITE
 export encode, decode, Tagged, Undefined, undefined
 export RecordID, Table, SurrealDecimal, SurrealDateTime, SurrealDuration, SurrealFile
+export SurrealRange, BoundIncluded, BoundExcluded
 export TAG_NONE, TAG_TABLE, TAG_RECORDID, TAG_STRING_UUID, TAG_STRING_DECIMAL,
        TAG_CUSTOM_DATETIME, TAG_STRING_DURATION, TAG_CUSTOM_DURATION,
        TAG_SPEC_DATETIME, TAG_SPEC_UUID, TAG_RANGE, TAG_BOUND_INCLUDED,

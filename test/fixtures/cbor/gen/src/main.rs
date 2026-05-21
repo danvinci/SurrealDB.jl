@@ -187,6 +187,22 @@ fn main() {
     emit("set_strings_abc",
          &Value::Tag(56, Box::new(array(vec![text("a"), text("b"), text("c")]))));
 
+    // L3 typed: Range + Bound markers (49 / 50 / 51).
+    // Ref convert.rs:193, 511-542.
+    let bound_inc = |v: Value| Value::Tag(50, Box::new(v));
+    let bound_exc = |v: Value| Value::Tag(51, Box::new(v));
+    let range = |s: Value, e: Value| Value::Tag(49, Box::new(array(vec![s, e])));
+
+    // [1, 10)
+    emit("range_1_10",
+         &range(bound_inc(int(1)), bound_exc(int(10))));
+    // [1, ∞)
+    emit("range_1_inf",
+         &range(bound_inc(int(1)), Value::Null));
+    // (-∞, 0)
+    emit("range_neginf_0",
+         &range(Value::Null, bound_exc(int(0))));
+
     // L3 typed: RecordID = Tag(8, [table_text, key]). Ref convert.rs:416-434
     // Key variants matching the polymorphic dispatch in convert.rs:586-599.
     let rid = |table: &str, key: Value| {

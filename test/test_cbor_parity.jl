@@ -5,7 +5,8 @@
 
 using SurrealDB.SurrealCBOR
 using SurrealDB.SurrealCBOR: encode, Tagged, RecordID, Table, SurrealDecimal,
-    SurrealDateTime, SurrealDuration, SurrealFile
+    SurrealDateTime, SurrealDuration, SurrealFile,
+    SurrealRange, BoundIncluded, BoundExcluded
 using UUIDs
 using Test
 using TOML
@@ -109,6 +110,11 @@ const _CASES = Dict{String, Any}(
     # L3 typed — TAG_SET (56)
     "set_int_123"           => Set([1, 2, 3]),
     "set_strings_abc"       => Set(["a", "b", "c"]),
+
+    # L3 typed — TAG_RANGE (49) + bound markers (50, 51)
+    "range_1_10"            => SurrealRange(BoundIncluded(1), BoundExcluded(10)),
+    "range_1_inf"           => SurrealRange(BoundIncluded(1), nothing),
+    "range_neginf_0"        => SurrealRange(nothing, BoundExcluded(0)),
 
     # L3 typed — TAG_RECORDID (8) key variants
     "recordid_int_key"      => RecordID("users", 42),

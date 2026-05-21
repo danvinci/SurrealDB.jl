@@ -191,6 +191,15 @@ hex = "d83883010203"
 ["set_strings_abc"]
 hex = "d83883616161626163"
 
+["range_1_10"]
+hex = "d83182d83201d8330a"
+
+["range_1_inf"]
+hex = "d83182d83201f6"
+
+["range_neginf_0"]
+hex = "d83182f6d83300"
+
 ["recordid_int_key"]
 hex = "c882657573657273182a"
 

@@ -48,7 +48,7 @@ export EmbeddedFFIError, ConnectionUnavailableError, UnsupportedEngineError, Uns
 # standalone package later. Access via SurrealDB.SurrealCBOR.*.
 include("cbor/SurrealCBOR.jl")
 using .SurrealCBOR: RecordID, Table, SurrealDecimal, SurrealDateTime, SurrealDuration,
-    SurrealFile
+    SurrealFile, SurrealRange, BoundIncluded, BoundExcluded
 
 include("errors.jl")
 include("types.jl")
