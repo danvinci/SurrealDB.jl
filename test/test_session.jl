@@ -77,17 +77,17 @@ end
 
 # --- v3+ Sessions (attach/detach) ---
 
-@testset "attach!/detach!/sessions roundtrip (v3+)" begin
+@testset "attach!/close!/sessions roundtrip (v3+)" begin
     # v2 doesn't implement the attach RPC; gate via version probe.
     ver = try; string(SurrealDB.version(client)); catch; ""; end
     if occursin(r"surrealdb-2\.", ver)
-        @info "Skipping attach!/detach! — v2 server doesn't support v3 sessions"
+        @info "Skipping attach!/close! — v2 server doesn't support v3 sessions"
     else
-        sid = SurrealDB.attach!(client)
-        @test sid isa UUIDs.UUID
-        @test sid in SurrealDB.sessions(client)
-        SurrealDB.detach!(client, sid)
-        @test !(sid in SurrealDB.sessions(client))
+        sess = SurrealDB.attach!(client)
+        @test sess isa SurrealDB.SurrealSession
+        @test sess.session_id in SurrealDB.sessions(client)
+        SurrealDB.close!(sess)
+        @test !(sess.session_id in SurrealDB.sessions(client))
     end
 end
 

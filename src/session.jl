@@ -32,27 +32,30 @@ end
 # --- v3+ Sessions (attach/detach) ---
 
 """
-    attach!(client)
+    attach!(client) -> SurrealSession
 
-Create a new ephemeral session on the server (SurrealDB v3+).
+Create a new ephemeral session on the server (SurrealDB v3+) and return a
+[`SurrealSession`](@ref) wrapper. The session is independent: its own
+namespace, database, auth, and variables. Close with [`close!`](@ref).
 
-Returns a `UUID` session identifier. The session is independent — it has its
-own namespace, database, auth, and variables. Use [`detach!`](@ref) to clean up.
+Matches the wrapped-session API used by surrealdb-go (`db.Attach`),
+surrealdb-py (`AsyncSurrealSession` / `BlockingSurrealSession`), and
+surrealdb-js (`newSession`).
 
 WebSocket-only (not supported on HTTP connections).
 """
-function attach!(client::SurrealClient{<:RemoteWSConnection})
+function attach!(client::SurrealClient{C}) where {C<:RemoteWSConnection}
     sid = UUIDs.uuid4()
     _rpc_call(client, "attach", Any[]; session=sid)
-    return sid
+    return SurrealSession{C}(client, sid)
 end
 
 """
     detach!(client, session_id::UUID)
 
-Destroy a server-side session (SurrealDB v3+).
-
-After detaching, the session cannot be used for further operations.
+Destroy a server-side session by raw UUID (SurrealDB v3+). Prefer
+[`close!`](@ref) on a [`SurrealSession`](@ref); use this when you only have
+a bare UUID (e.g. from [`sessions`](@ref) listing).
 """
 function detach!(client::SurrealClient{<:RemoteWSConnection}, session_id)
     _rpc_call(client, "detach", Any[]; session=session_id)
@@ -100,6 +103,19 @@ auth, and variables.
 mutable struct SurrealSession{C<:AbstractConnection}
     client::SurrealClient{C}
     session_id::UUID
+end
+
+Base.show(io::IO, s::SurrealSession) = print(io, "SurrealSession(", s.session_id, ")")
+
+"""
+    close!(session::SurrealSession)
+
+Destroy the server-side session. After closing, the session must not be used.
+Wraps [`detach!`](@ref).
+"""
+function close!(session::SurrealSession{<:RemoteWSConnection})
+    detach!(session.client, session.session_id)
+    return nothing
 end
 
 """
