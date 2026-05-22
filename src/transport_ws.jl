@@ -104,6 +104,16 @@ function _reconnect_apply_state!(conn::RemoteWSConnection)
         end
     end
 
+    # Re-set session variables (`let!`) — server-side state is wiped on
+    # reconnect; the client tracks them in `client.variables` for replay.
+    # Best-effort: a single failed key shouldn't block the rest.
+    for (key, value) in client.variables
+        try
+            _rpc_call(client, "let", Any[key, value])
+        catch
+        end
+    end
+
     # Re-subscribe live queries. New UUIDs replace old ones; update live_handles
     # so kill!(sub) targets the server-side subscription after reconnect.
     # All three live-query Dicts are mutated under live_lock to serialize against

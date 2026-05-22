@@ -122,6 +122,48 @@ end
     end
 end
 
+@testset "reconnect replays session variables (let!)" begin
+    # `let!` writes to `client.variables` AND server-side state. On reconnect,
+    # server state is gone; _reconnect_apply_state! must replay each variable.
+    mock = MockWS.start_mock()
+    try
+        client = SurrealDB.connect("ws://127.0.0.1:$(mock.port)")
+        client.connection.reconnect_base_delay = 0.05
+        client.connection.reconnect_max_delay = 0.5
+        client.connection.reconnect_jitter = 0.0
+        try
+            SurrealDB.use!(client, "ns", "db")
+            SurrealDB.let!(client, "alpha", 42)
+            SurrealDB.let!(client, "beta", "hello")
+            @test client.variables["alpha"] == 42
+            @test client.variables["beta"] == "hello"
+
+            seen_before = length(MockWS.methods_seen(mock))
+            initial_upgrades = MockWS.upgrade_count(mock)
+
+            MockWS.force_drop!(mock)
+
+            @test _wait_until(() -> MockWS.upgrade_count(mock) > initial_upgrades;
+                              timeout_s=3.0)
+            @test _wait_until(() -> client.connection.status == SurrealDB.STATUS_CONNECTED;
+                              timeout_s=3.0)
+
+            # Both `let` calls should appear in the replay window. The "let"
+            # method name is recorded once per variable; order is not
+            # guaranteed (Dict iteration), so just count occurrences.
+            ok = _wait_until(timeout_s=2.0) do
+                replayed = MockWS.methods_seen(mock)[seen_before+1:end]
+                count(==("let"), replayed) >= 2
+            end
+            @test ok
+        finally
+            SurrealDB.close!(client)
+        end
+    finally
+        MockWS.stop_mock!(mock)
+    end
+end
+
 @testset "reconnect=false: no re-attempt after drop" begin
     mock = MockWS.start_mock()
     try
