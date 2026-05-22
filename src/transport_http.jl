@@ -25,10 +25,10 @@ function _rpc_call_http(client::SurrealClient{<:RemoteHTTPConnection}, method::S
 
         msg = Dict("id" => rid, "method" => effective_method, "params" => effective_params)
         if session !== nothing
-            msg["session"] = session isa UUIDs.UUID ? string(session) : string(session)
+            msg["session"] = string(session)
         end
         if txn !== nothing
-            msg["txn"] = txn isa UUIDs.UUID ? string(txn) : string(txn)
+            msg["txn"] = string(txn)
         end
         content_type = _wire_content_type(conn)
         headers = ["Content-Type" => content_type, "Accept" => content_type]
