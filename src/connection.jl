@@ -456,7 +456,7 @@ Connect to a SurrealDB instance. The URL scheme determines the backend:
 |---|---|---|
 | `ws://host:port` | Remote WS | WebSocket (stateful) |
 | `http://host:port` | Remote HTTP | HTTP (stateless) |
-| `mem://` | Embedded | In-memory database |
+| `mem://`, `memory://` | Embedded | In-memory database (aliases for the same backend) |
 | `surrealkv://path` | Embedded | File-backed database |
 
 Keyword arguments:
