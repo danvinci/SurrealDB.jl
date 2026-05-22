@@ -17,7 +17,7 @@ include("mock_ws_server.jl")
 # Wait until `pred()` returns true or `timeout_s` elapses. Returns whether the
 # predicate held by the deadline. Polls every 50ms — fast enough that a 1s
 # timeout is responsive without burning CPU.
-function _wait_until(pred; timeout_s::Float64=2.0, step_s::Float64=0.05)
+function _wait_until(pred; timeout_s::Float64=2.0, step_s::Float64=0.025)
     deadline = time() + timeout_s
     while time() < deadline
         pred() && return true
