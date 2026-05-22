@@ -119,6 +119,33 @@ function _http_adapt_method(method::String, params::Vector{Any}, prefix::String)
         return "query", Any[prefix * "INSERT INTO $relation \$data", Dict("data" => payload)]
     elseif method == "live"
         throw(UnsupportedFeatureError(:live, :http))
+    elseif method == "run"
+        # params = [fn_name, version, args]. Version is currently ignored —
+        # the SurrealQL fn:: syntax doesn't expose a per-call version pin.
+        # Args become positional variable bindings ($arg0, $arg1, ...) so
+        # the function name is the only un-bound interpolation; validate it
+        # to a strict identifier shape to block SQL-injection via fn_name.
+        # Caller passes the full namespaced name (`"fn::adder"`); the SurrealQL
+        # RETURN form takes it verbatim. Validate identifier shape (incl. `::`)
+        # to block SQL-injection via fn_name; args bind as variables so their
+        # values can't escape.
+        fn_name = string(params[1])
+        occursin(r"^[A-Za-z_][A-Za-z0-9_]*(::[A-Za-z_][A-Za-z0-9_]*)*$", fn_name) ||
+            throw(ArgumentError("invalid SurrealDB function name for HTTP rewrite: $fn_name"))
+        args = length(params) > 2 ? params[3] : Any[]
+        names = ["arg$(i-1)" for i in 1:length(args)]
+        arg_list = join(("\$" * n for n in names), ", ")
+        vars = Dict{String, Any}(zip(names, args))
+        return "query", Any[prefix * "RETURN $fn_name($arg_list)", vars]
+    elseif method == "patch"
+        # params = [what, patches::Vector{Dict{String,Any}}, diff::Bool]
+        # SurrealQL: UPDATE <what> PATCH $patches [RETURN DIFF].
+        what = _to_string(params[1])
+        patches = params[2]
+        diff = length(params) > 2 ? (params[3] === true) : false
+        return_clause = diff ? " RETURN DIFF" : ""
+        return "query", Any[prefix * "UPDATE $what PATCH \$patches$return_clause",
+                            Dict("patches" => patches)]
     else
         # Non-data methods (signin, use, info, version, etc.) pass through unchanged
         return method, params

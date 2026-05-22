@@ -84,6 +84,9 @@ end
     _section("Wire codec dispatch") do
         @testset "Wire codec dispatch" begin include("test_wire.jl") end
     end
+    _section("HTTP adapt method") do
+        @testset "HTTP adapt method" begin include("test_http_adapt.jl") end
+    end
     _section("Reconnect") do
         @testset "Reconnect" begin include("test_reconnect.jl") end
     end
