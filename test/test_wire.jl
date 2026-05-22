@@ -139,6 +139,66 @@ end
     end
 end
 
+@testset "wire: type fidelity — RecordID + Table through both wires" begin
+    # Regression guard for the s12-s13 transition: methods.jl no longer
+    # pre-stringifies typed values via `_to_string`. JSON wire must still
+    # produce the canonical `"user:alice"` shape (via JSON.lower); CBOR
+    # must preserve the type as Tag(8, [table, key]) / Tag(7, name).
+    r = SurrealDB.RecordID("user", "alice")
+    t = SurrealDB.Table("user")
+    env = Dict{String, Any}("id" => 1, "method" => "select", "params" => Any[r])
+
+    # --- JSON wire ---
+    cj = _W.RemoteConnection{:ws, :json}(url="ws://x")
+    enc_j = _W._wire_encode(cj, env)
+    # Canonical wire shape: bare string, not the struct-shaped default
+    # JSON.jl would otherwise emit for a RecordID.
+    @test occursin("\"user:alice\"", enc_j)
+    @test !occursin("\"table\":", enc_j)
+    # Table lowers to its name string.
+    env_t = Dict{String, Any}("id" => 1, "method" => "select", "params" => Any[t])
+    enc_jt = _W._wire_encode(cj, env_t)
+    @test occursin("\"user\"", enc_jt)
+    @test !occursin("\"name\":", enc_jt)
+
+    # --- CBOR wire ---
+    cc = _W.RemoteConnection{:ws, :cbor}(url="ws://x")
+    enc_c = _W._wire_encode(cc, env)
+    # 0xc8 = Tag(8, ...) header byte; presence confirms typed encode.
+    @test 0xc8 in enc_c
+    # Round-trip back to a typed RecordID.
+    dec_c = _W._wire_decode(cc, enc_c)
+    @test dec_c["params"][1] isa SurrealDB.RecordID
+    @test dec_c["params"][1].table == "user"
+    @test dec_c["params"][1].id == "alice"
+    # Table → Tag(7); round-trip preserves Table type.
+    enc_ct = _W._wire_encode(cc, env_t)
+    @test 0xc7 in enc_ct
+    dec_ct = _W._wire_decode(cc, enc_ct)
+    @test dec_ct["params"][1] isa SurrealDB.Table
+    @test dec_ct["params"][1].name == "user"
+
+    # --- Embedded inside a data Dict (insert_relation shape) ---
+    payload = Dict{String, Any}(
+        "in"  => SurrealDB.RecordID("person", "john"),
+        "out" => SurrealDB.RecordID("person", "jane"),
+        "kind" => "knows"
+    )
+    env_ir = Dict{String, Any}("id" => 2, "method" => "insert_relation",
+                                "params" => Any[SurrealDB.Table("knows"), payload])
+    # JSON lowers all three.
+    enc_ir_j = _W._wire_encode(cj, env_ir)
+    @test occursin("\"person:john\"", enc_ir_j)
+    @test occursin("\"person:jane\"", enc_ir_j)
+    @test occursin("\"knows\"", enc_ir_j)
+    # CBOR preserves all three as their tags.
+    enc_ir_c = _W._wire_encode(cc, env_ir)
+    dec_ir_c = _W._wire_decode(cc, enc_ir_c)
+    @test dec_ir_c["params"][1] isa SurrealDB.Table
+    @test dec_ir_c["params"][2]["in"] isa SurrealDB.RecordID
+    @test dec_ir_c["params"][2]["out"] isa SurrealDB.RecordID
+end
+
 @testset "wire: mock-WS handshake — default (CBOR)" begin
     # `connect(...)` with no `wire=` defaults to :cbor per the user's
     # direction; this exercises the full CBOR path through the mock.
