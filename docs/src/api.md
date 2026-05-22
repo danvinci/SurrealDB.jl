@@ -17,6 +17,16 @@ SurrealDB.RemoteHTTPConnection
 SurrealDB.EmbeddedConnection
 ```
 
+## Connection lifecycle and observability
+
+```@docs
+SurrealDB.ConnectionStatus
+SurrealDB.LifecycleEvent
+SurrealDB.AbstractSurrealLogger
+SurrealDB.NullLogger
+SurrealDB.FnLogger
+```
+
 ## Authentication
 
 ```@docs
@@ -24,6 +34,9 @@ SurrealDB.signin!
 SurrealDB.signup!
 SurrealDB.authenticate!
 SurrealDB.invalidate!
+SurrealDB.refresh!
+SurrealDB.tokens
+SurrealDB.Tokens
 SurrealDB.RootAuth
 SurrealDB.NamespaceAuth
 SurrealDB.ScopedAuth
@@ -43,6 +56,10 @@ SurrealDB.health
 
 ```@docs
 SurrealDB.query
+SurrealDB.query_verbose
+SurrealDB.QueryStatement
+SurrealDB.isok
+SurrealDB.iserr
 SurrealDB.query_table
 SurrealDB.query_one
 SurrealDB.create
@@ -110,9 +127,29 @@ SurrealDB.QueryResultTable
 
 ```@docs
 SurrealDB.RecordID
+SurrealDB.SurrealThing
 SurrealDB.Table
 SurrealDB.SurrealValue
 SurrealDB.Relationship
+```
+
+## Wire-format types
+
+```@docs
+SurrealDB.SurrealDecimal
+SurrealDB.SurrealDateTime
+SurrealDB.SurrealDuration
+SurrealDB.SurrealFile
+SurrealDB.SurrealRange
+SurrealDB.BoundIncluded
+SurrealDB.BoundExcluded
+SurrealDB.GeometryPoint
+SurrealDB.GeometryLine
+SurrealDB.GeometryPolygon
+SurrealDB.GeometryMultiPoint
+SurrealDB.GeometryMultiLine
+SurrealDB.GeometryMultiPolygon
+SurrealDB.GeometryCollection
 ```
 
 ## Errors
@@ -134,6 +171,7 @@ SurrealDB.ConnectionError
 SurrealDB.ConnectionUnavailableError
 SurrealDB.UnsupportedEngineError
 SurrealDB.UnsupportedFeatureError
+SurrealDB.UnsupportedVersionError
 SurrealDB.UnexpectedResponseError
 SurrealDB.EmbeddedFFIError
 ```
