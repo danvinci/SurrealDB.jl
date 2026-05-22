@@ -21,15 +21,21 @@ const TEST_NS = "test"
 const TEST_DB = "test"
 const TEST_URL = get(ENV, "SURREALDB_URL", "ws://localhost:8001")
 
-function get_test_client(; url=TEST_URL)
+const TEST_WIRE = Symbol(get(ENV, "SURREALDB_WIRE", "cbor"))
+
+function get_test_client(; url=TEST_URL, wire=TEST_WIRE)
     # `ping_interval=0` disables the keepalive task. Without this, every
     # test client spawns a Timer + @async task that may not be torn down
     # cleanly between rapid connect/close cycles, eventually starving the
     # scheduler and making the 6th-or-so connect hang past its 2.5s
     # timeout. Tests don't need keepalive — they're synchronous and
     # short-lived.
-    println(stderr, "[get_test_client] connect..."); flush(stderr)
-    client = SurrealDB.connect(url; ping_interval=0.0)
+    #
+    # `wire` defaults to the SURREALDB_WIRE env var (`:cbor` if unset) so
+    # CI can pivot the full server-dependent suite between wires via a
+    # matrix axis without per-call edits.
+    println(stderr, "[get_test_client] connect (wire=$wire)..."); flush(stderr)
+    client = SurrealDB.connect(url; ping_interval=0.0, wire=wire)
     println(stderr, "[get_test_client] use!..."); flush(stderr)
     SurrealDB.use!(client, TEST_NS, TEST_DB)
     println(stderr, "[get_test_client] signin!..."); flush(stderr)
