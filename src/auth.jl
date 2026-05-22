@@ -6,7 +6,8 @@
 function _signin_impl!(client::SurrealClient, params)
     result = _rpc_call(client, "signin", Any[params])
     token = _extract_token(result)
-    client.token = token
+    refresh = _extract_refresh(result)
+    _apply_tokens!(client, token, refresh)
     return token
 end
 
@@ -69,7 +70,8 @@ function signup!(client::SurrealClient{C}, auth::ScopedAuth) where {C<:AbstractC
     params = _to_params(auth)
     result = _rpc_call(client, "signup", Any[params])
     token = _extract_token(result)
-    client.token = token
+    refresh = _extract_refresh(result)
+    _apply_tokens!(client, token, refresh)
     return token
 end
 
@@ -89,7 +91,13 @@ SurrealDB.authenticate!(db, "eyJ0eXAiOiJKV1QiLCJh...")
 """
 function authenticate!(client::SurrealClient{C}, token::String) where {C<:AbstractConnection}
     _rpc_call(client, "authenticate", Any[token])
-    client.token = token
+    # External token: no refresh component. Carry over an existing refresh
+    # token only if the caller is re-applying the same access token (e.g.
+    # reconnect replay) — otherwise the prior refresh belongs to a different
+    # session and must be dropped.
+    existing = client.tokens
+    refresh = (existing !== nothing && existing.access == token) ? existing.refresh : nothing
+    _apply_tokens!(client, token, refresh)
     return nothing
 end
 
@@ -103,7 +111,7 @@ Subsequent operations will be unauthenticated.
 """
 function invalidate!(client::SurrealClient{C}) where {C<:AbstractConnection}
     _rpc_call(client, "invalidate", Any[])
-    client.token = nothing
+    _clear_tokens!(client)
     return nothing
 end
 
@@ -120,3 +128,37 @@ function _extract_token(result)
         return string(result)
     end
 end
+
+# Pull a refresh token out of a signin/signup/refresh response. Returns
+# `nothing` if the server didn't issue one (legacy scopes, Root/NS auth,
+# scopes without `WITH REFRESH`).
+function _extract_refresh(result)
+    result isa AbstractDict || return nothing
+    v = get(result, "refresh", nothing)
+    v === nothing && return nothing
+    return v isa AbstractString ? String(v) : string(v)
+end
+
+# Single owner for the (token, tokens, refresh-timer) tuple. Centralises the
+# invariant that `client.token == client.tokens.access` whenever
+# `client.tokens !== nothing`, and ensures any pre-existing refresh timer is
+# replaced rather than leaked.
+function _apply_tokens!(client::SurrealClient, access::AbstractString,
+                        refresh::Union{AbstractString, Nothing})
+    client.token = String(access)
+    client.tokens = Tokens(access, refresh)
+    _reschedule_refresh_timer!(client)
+    return nothing
+end
+
+function _clear_tokens!(client::SurrealClient)
+    client.token = nothing
+    client.tokens = nothing
+    _cancel_refresh_timer!(client)
+    return nothing
+end
+
+# Refresh-timer hooks. Overridden by remote-connection methods below; the
+# default no-op makes embedded clients (no timer field) Just Work.
+_reschedule_refresh_timer!(::SurrealClient) = nothing
+_cancel_refresh_timer!(::SurrealClient) = nothing

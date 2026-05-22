@@ -155,8 +155,10 @@ mutable struct SurrealClient{C<:AbstractConnection}
     namespace::Union{String, Nothing}
     "Currently selected database; set via `use!` or auto-applied on reconnect"
     database::Union{String, Nothing}
-    "JWT token from the most recent successful signin/authenticate; `nothing` when unauthenticated"
+    "JWT token from the most recent successful signin/authenticate; `nothing` when unauthenticated. Mirrors `tokens.access` when `tokens !== nothing` — kept as a flat String for reconnect-replay simplicity."
     token::Union{String, Nothing}
+    "Typed access+refresh pair when the server issued one (`WITH REFRESH` scopes); `nothing` otherwise. Public accessor: [`tokens`](@ref)."
+    tokens::Union{Tokens, Nothing}
     "Session variables set via `let!` — used for state inspection and reconnect re-application"
     variables::Dict{String, Any}
 end
@@ -440,7 +442,7 @@ function connect(url::String;
                 throw(ConnectionError(msg, cause))
             end
         end
-        client = SurrealClient(conn, nothing, nothing, nothing, Dict{String, Any}())
+        client = SurrealClient(conn, nothing, nothing, nothing, nothing, Dict{String, Any}())
         conn.client = client
 
         if auth !== nothing
@@ -456,7 +458,7 @@ function connect(url::String;
         return client
     elseif scheme in (:mem, :surrealkv)
         conn = embedded_connect(url)
-        client = SurrealClient(conn, nothing, nothing, nothing, Dict{String, Any}())
+        client = SurrealClient(conn, nothing, nothing, nothing, nothing, Dict{String, Any}())
 
         if ns !== nothing && db !== nothing
             use!(client, ns, db)
@@ -478,6 +480,7 @@ function close!(client::SurrealClient{C}) where {C<:AbstractConnection}
     client.namespace = nothing
     client.database = nothing
     client.token = nothing
+    client.tokens = nothing
     return nothing
 end
 
@@ -489,6 +492,17 @@ Return the current connection status as a `ConnectionStatus`:
 """
 function status(client::SurrealClient{C}) where {C<:AbstractConnection}
     return client.connection.status
+end
+
+"""
+    tokens(client::SurrealClient) -> Union{Tokens, Nothing}
+
+Return the typed access+refresh pair from the most recent successful
+sign-in, or `nothing` if the client is unauthenticated or the auth mode
+did not issue a refresh token. See [`Tokens`](@ref).
+"""
+function tokens(client::SurrealClient{C}) where {C<:AbstractConnection}
+    return client.tokens
 end
 
 """

@@ -116,6 +116,29 @@ struct JwtAuth
     token::String
 end
 
+"""
+    Tokens(access::String, refresh::Union{String, Nothing})
+
+Typed pair of tokens returned by SurrealDB sign-in flows that opted into
+`WITH REFRESH` on the access method. `access` is the short-lived JWT used
+for authenticated RPCs; `refresh` is the longer-lived token exchanged via
+the `refresh` RPC for a new access token. `refresh` is `nothing` when the
+auth mode doesn't issue one (Root/Namespace/legacy Scope).
+"""
+struct Tokens
+    access::String
+    refresh::Union{String, Nothing}
+end
+
+Tokens(access::AbstractString) = Tokens(String(access), nothing)
+Tokens(access::AbstractString, refresh::AbstractString) = Tokens(String(access), String(refresh))
+Tokens(access::AbstractString, ::Nothing) = Tokens(String(access), nothing)
+
+function Base.show(io::IO, t::Tokens)
+    rf = t.refresh === nothing ? "-" : _truncate_token(t.refresh)
+    print(io, "Tokens(access=", _truncate_token(t.access), ", refresh=", rf, ")")
+end
+
 # Password-redacting show methods. The default field-dump would print
 # `RootAuth("root", "supersecret")` — anywhere a client logs an auth struct
 # (debug printing, error messages, tracebacks) the password would leak.

@@ -26,13 +26,13 @@ const EXPECTED_EXPORTS = Set([
     :RecordID, :Table, :SurrealValue, :Relationship, :LiveSubscription, :LiveNotification,
 
     # Auth
-    :RootAuth, :NamespaceAuth, :ScopedAuth, :JwtAuth,
+    :RootAuth, :NamespaceAuth, :ScopedAuth, :JwtAuth, :Tokens,
 
     # Connection lifecycle
     :connect, :close!, :status, :events,
 
     # Auth methods
-    :signin!, :signup!, :authenticate!, :invalidate!,
+    :signin!, :signup!, :authenticate!, :invalidate!, :tokens,
 
     # Database scope
     :use!, :info, :version, :health, :ping,
