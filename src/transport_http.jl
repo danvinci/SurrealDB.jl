@@ -3,33 +3,40 @@
 function _rpc_call_http(client::SurrealClient{<:RemoteHTTPConnection}, method::String, params::Vector{Any};
                       session=nothing, txn=nothing)
     conn = client.connection
-    lock(conn.lock)
-    conn.request_id += 1
-    rid = conn.request_id
-    url = conn.http_base_url * "/rpc"
+    # Lock scope covers id allocation + msg + headers prep. Throws inside
+    # `_http_adapt_method` / `_wire_content_type` / `JSON.json` would leak
+    # the lock permanently without the try/finally — see s13 audit.
+    local rid::Int
+    local url::String
+    local msg::Dict
+    local headers::Vector
+    lock(conn.lock) do
+        conn.request_id += 1
+        rid = conn.request_id
+        url = conn.http_base_url * "/rpc"
 
-    # For HTTP, auto-prepend USE NS/DB since it is a stateless protocol
-    ns = client.namespace
-    db = client.database
-    ns_db_prefix = (ns !== nothing && db !== nothing) ? "USE NS $ns DB $db;\n" : ""
+        # For HTTP, auto-prepend USE NS/DB since it is a stateless protocol
+        ns = client.namespace
+        db = client.database
+        ns_db_prefix = (ns !== nothing && db !== nothing) ? "USE NS $ns DB $db;\n" : ""
 
-    # Auto-convert CRUD methods to SurrealQL for HTTP (so USE NS/DB applies)
-    effective_method, effective_params = _http_adapt_method(method, params, ns_db_prefix)
+        # Auto-convert CRUD methods to SurrealQL for HTTP (so USE NS/DB applies)
+        effective_method, effective_params = _http_adapt_method(method, params, ns_db_prefix)
 
-    msg = Dict("id" => rid, "method" => effective_method, "params" => effective_params)
-    if session !== nothing
-        msg["session"] = session isa UUIDs.UUID ? string(session) : string(session)
+        msg = Dict("id" => rid, "method" => effective_method, "params" => effective_params)
+        if session !== nothing
+            msg["session"] = session isa UUIDs.UUID ? string(session) : string(session)
+        end
+        if txn !== nothing
+            msg["txn"] = txn isa UUIDs.UUID ? string(txn) : string(txn)
+        end
+        content_type = _wire_content_type(conn)
+        headers = ["Content-Type" => content_type, "Accept" => content_type]
+        tok = client.token
+        if tok !== nothing
+            push!(headers, "Authorization" => "Bearer $tok")
+        end
     end
-    if txn !== nothing
-        msg["txn"] = txn isa UUIDs.UUID ? string(txn) : string(txn)
-    end
-    content_type = _wire_content_type(conn)
-    headers = ["Content-Type" => content_type, "Accept" => content_type]
-    tok = client.token
-    if tok !== nothing
-        push!(headers, "Authorization" => "Bearer $tok")
-    end
-    unlock(conn.lock)
 
     @debug "SurrealDB http RPC →" rid=rid method=effective_method wire=_wire(conn)
     # Mirror WS transport's rpc_timeout: HTTP.jl defaults readtimeout=0 (unbounded),
