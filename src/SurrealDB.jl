@@ -62,6 +62,7 @@ using .SurrealCBOR: RecordID, Table, SurrealDecimal, SurrealDateTime, SurrealDur
 include("errors.jl")
 include("types.jl")
 include("connection.jl")
+include("wire.jl")
 include("transport_ws.jl")
 include("transport_http.jl")
 include("auth.jl")
