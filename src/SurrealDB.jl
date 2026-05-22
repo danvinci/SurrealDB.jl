@@ -1,5 +1,6 @@
 module SurrealDB
 
+using Base64
 using JSON
 using HTTP
 using StructTypes

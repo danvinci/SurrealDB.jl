@@ -3,6 +3,7 @@ uuid = "79cae1c5-98c2-497c-900b-3d25c1320e3c"
 version = "0.2.0-alpha.1"
 
 [deps]
+Base64 = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
 HTTP = "cd3eb016-35fb-5094-929b-558a96fad6f3"
 JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
@@ -20,6 +21,7 @@ MetaGraphsNext = "fa8bd995-216d-47f1-8a91-f3b68fbeb377"
 SurrealDBMetaGraphsNextExt = ["MetaGraphsNext", "Graphs"]
 
 [compat]
+Base64 = "1"
 Dates = "1"
 Graphs = "1"
 HTTP = "1"

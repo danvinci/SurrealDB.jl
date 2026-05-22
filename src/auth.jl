@@ -162,3 +162,47 @@ end
 # default no-op makes embedded clients (no timer field) Just Work.
 _reschedule_refresh_timer!(::SurrealClient) = nothing
 _cancel_refresh_timer!(::SurrealClient) = nothing
+
+# --- JWT exp parsing ---
+
+# Base64-url decode tolerant of the missing `=` padding JWT segments use.
+# Returns `nothing` on any decode failure so callers can degrade gracefully
+# rather than throw on a malformed token.
+function _b64url_decode(s::AbstractString)
+    # Translate URL-safe alphabet to standard, then pad to multiple of 4.
+    t = replace(String(s), '-' => '+', '_' => '/')
+    pad = (4 - (length(t) % 4)) % 4
+    t = t * repeat("=", pad)
+    return try
+        Base64.base64decode(t)
+    catch
+        nothing
+    end
+end
+
+"""
+    _parse_jwt_exp(token::String) -> Union{Int, Nothing}
+
+Decode the `exp` (expiration) claim from a JWT's payload segment as a Unix
+epoch timestamp in seconds. Returns `nothing` for any token that doesn't
+parse cleanly or doesn't carry an `exp` claim — callers treat that as "no
+proactive refresh scheduled" rather than an error condition (the server is
+the source of truth for token validity).
+"""
+function _parse_jwt_exp(token::AbstractString)::Union{Int, Nothing}
+    parts = split(String(token), '.')
+    length(parts) >= 2 || return nothing
+    payload_bytes = _b64url_decode(parts[2])
+    payload_bytes === nothing && return nothing
+    payload = try
+        JSON.parse(String(payload_bytes))
+    catch
+        return nothing
+    end
+    payload isa AbstractDict || return nothing
+    exp = get(payload, "exp", nothing)
+    exp === nothing && return nothing
+    return exp isa Integer ? Int(exp) :
+           exp isa Real ? Int(floor(exp)) :
+           nothing
+end
