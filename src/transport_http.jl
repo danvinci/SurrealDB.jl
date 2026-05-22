@@ -23,24 +23,30 @@ function _rpc_call_http(client::SurrealClient{<:RemoteHTTPConnection}, method::S
     if txn !== nothing
         msg["txn"] = txn isa UUIDs.UUID ? string(txn) : string(txn)
     end
-    headers = ["Content-Type" => "application/json", "Accept" => "application/json"]
+    content_type = _wire_content_type(conn)
+    headers = ["Content-Type" => content_type, "Accept" => content_type]
     tok = client.token
     if tok !== nothing
         push!(headers, "Authorization" => "Bearer $tok")
     end
     unlock(conn.lock)
 
-    @debug "SurrealDB http RPC →" rid=rid method=effective_method
+    @debug "SurrealDB http RPC →" rid=rid method=effective_method wire=_wire(conn)
     # Mirror WS transport's rpc_timeout: HTTP.jl defaults readtimeout=0 (unbounded),
     # so a slow/hung server hangs the caller. `Inf` disables (HTTP.jl's 0 sentinel).
     read_to = isinf(conn.rpc_timeout) ? 0 : max(1, Int(ceil(conn.rpc_timeout)))
     resp = nothing  # JET noticed it could be undefined if HTTP.post throws
     try
-        resp = HTTP.post(url, headers, JSON.json(msg); readtimeout=read_to)
+        resp = HTTP.post(url, headers, _wire_encode(conn, msg); readtimeout=read_to, status_exception=false)
+        # 406 Not Acceptable surfaces as a clear feature-unavailable signal
+        # (server refused our `Accept`). No silent JSON fallback.
+        if resp.status == 406
+            throw(UnsupportedFeatureError(_wire(conn), :http))
+        end
         if resp.status != 200
             throw(ConnectionError("HTTP $(resp.status): $(String(resp.body))"))
         end
-        response = JSON.parse(String(resp.body))
+        response = _wire_decode(conn, resp.body)
         @debug "SurrealDB http RPC ←" rid=rid status=resp.status has_error=(response isa AbstractDict && haskey(response, "error"))
         if response isa AbstractDict && haskey(response, "error")
             err = response["error"]

@@ -28,22 +28,26 @@ function _ws_reconnect_loop(conn::RemoteWSConnection)
         attempt += 1
 
         try
-            # `Sec-WebSocket-Protocol: json`: v3 requires explicit protocol;
-            # v2 inferred it. Without this, v3 accepts the upgrade then drops
-            # the first RPC.
+            # `Sec-WebSocket-Protocol`: v3 requires an explicit subprotocol
+            # (`json` or `cbor`); v2 inferred it. Without this header, v3
+            # accepts the upgrade then drops the first RPC. Wire is fixed by
+            # the connection's `W` type parameter — dispatched, no branching.
             HTTP.WebSockets.open(conn.url;
-                                 headers = ["Sec-WebSocket-Protocol" => "json"],
+                                 headers = ["Sec-WebSocket-Protocol" => _wire_subprotocol(conn)],
                                  require_ssl_verification = conn.tls_verify) do ws
                 conn.ws = ws
                 attempt = 0           # consecutive-failure counter resets
                 ever_connected = true
 
                 # Writer + reader must be up before state replay — replay issues RPCs.
+                # Channel element type matches the wire payload (String for
+                # JSON, Vector{UInt8} for CBOR) so the writer's send picks the
+                # right WS frame type without runtime branching.
                 if conn.write_channel === nothing || !isopen(conn.write_channel)
-                    conn.write_channel = Channel{String}(32)
+                    conn.write_channel = _new_write_channel(conn)
                 else
                     try; close(conn.write_channel); catch; end
-                    conn.write_channel = Channel{String}(32)
+                    conn.write_channel = _new_write_channel(conn)
                 end
                 writer = @async _ws_writer_task(conn)
                 reader = @async _ws_reader_task(conn)
@@ -151,9 +155,10 @@ function _ws_writer_task(conn::RemoteWSConnection)
             # Channel closed externally — exit cleanly.
             break
         end
-        if msg == ""
-            break
-        end
+        # Empty payload is the shutdown sentinel — `_close_remote!` pushes
+        # `""` or `UInt8[]` (matching the channel's element type) to wake the
+        # writer; either way an empty payload means exit.
+        isempty(msg) && break
         if conn.ws !== nothing && !HTTP.WebSockets.isclosed(conn.ws)
             try
                 HTTP.WebSockets.send(conn.ws, msg)
@@ -181,12 +186,12 @@ function _ws_reader_task(conn::RemoteWSConnection)
             rethrow()
         end
         isempty(raw) && continue
-        # `receive` returns `String` for TEXT frames; we send JSON as text. Tolerate
-        # binary just in case a future server emits it.
-        raw isa String || (raw = String(raw))
+        # `receive` returns `String` for TEXT frames (JSON) and
+        # `Vector{UInt8}` for BINARY frames (CBOR). `_wire_decode` dispatches
+        # on the connection's `W` param and accepts either form.
 
         msg = try
-            JSON.parse(raw)
+            _wire_decode(conn, raw)
         catch
             continue
         end
@@ -417,10 +422,10 @@ function _rpc_call_ws(client::SurrealClient{<:RemoteWSConnection}, method::Strin
         if txn !== nothing
             msg["txn"] = string(txn)
         end
-        json_msg = JSON.json(msg)
-        @debug "SurrealDB ws RPC →" rid=rid method=method params=params
+        payload = _wire_encode(conn, msg)
+        @debug "SurrealDB ws RPC →" rid=rid method=method params=params wire=_wire(conn)
         try
-            put!(conn.write_channel, json_msg)
+            put!(conn.write_channel, payload)
         catch e
             lock(conn.lock) do
                 delete!(conn.response_channels, rid)
