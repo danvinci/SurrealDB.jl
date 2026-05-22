@@ -16,7 +16,12 @@ function _ws_reconnect_loop(conn::RemoteWSConnection)
 
         # Backoff before any attempt that isn't the very first.
         if ever_connected || attempt > 0
-            _set_status!(conn, STATUS_RECONNECTING)
+            # `attempt+1` here: emit the upcoming attempt number so observers
+            # see "reconnecting, try 3" before the connect call, not after.
+            # `conn.last_error` carries the cause of the previous failure
+            # (drop or failed-attempt exception).
+            _emit_lifecycle!(conn, STATUS_RECONNECTING;
+                             attempt=attempt + 1, cause=conn.last_error)
             if attempt > 0
                 delay = min(conn.reconnect_base_delay * (2.0 ^ (attempt - 1)),
                             conn.reconnect_max_delay)
@@ -36,6 +41,11 @@ function _ws_reconnect_loop(conn::RemoteWSConnection)
                                  headers = ["Sec-WebSocket-Protocol" => _wire_subprotocol(conn)],
                                  require_ssl_verification = conn.tls_verify) do ws
                 conn.ws = ws
+                # Capture the attempt number this connect succeeded on so the
+                # CONNECTED event below carries "reconnected after N tries".
+                # First-ever connect: report 0 (not a retry). Reconnect: report
+                # the in-progress attempt count (1-based, includes this success).
+                connected_attempt = ever_connected ? attempt : 0
                 attempt = 0           # consecutive-failure counter resets
                 ever_connected = true
 
@@ -55,7 +65,11 @@ function _ws_reconnect_loop(conn::RemoteWSConnection)
                 # Replay before STATUS_CONNECTED so observers see a fully-restored session.
                 _reconnect_apply_state!(conn)
 
-                _set_status!(conn, STATUS_CONNECTED)
+                # Clear the prior-failure cause so the CONNECTED event isn't
+                # mis-attributed to whatever drop preceded the reconnect chain.
+                conn.last_error = nothing
+                _emit_lifecycle!(conn, STATUS_CONNECTED;
+                                 attempt=connected_attempt, cause=nothing)
                 _start_pinger!(conn)
 
                 try; wait(reader); catch; end
@@ -76,7 +90,12 @@ function _ws_reconnect_loop(conn::RemoteWSConnection)
     end
 
     _stop_pinger!(conn)
-    _set_status!(conn, STATUS_DISCONNECTED)
+    # Terminal disconnect: report the attempt counter at exit (max_attempts+1
+    # when retries were exhausted, 0 when reconnect=false short-circuited) and
+    # the last observed error so operators can attribute the give-up to a root
+    # cause without scraping logs.
+    _emit_lifecycle!(conn, STATUS_DISCONNECTED;
+                     attempt=attempt, cause=conn.last_error)
     conn.ws = nothing
     _teardown_channels!(conn)
     return nothing
