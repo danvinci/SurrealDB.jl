@@ -96,6 +96,9 @@ end
     _section("Reconnect Integration") do
         @testset "Reconnect Integration" begin include("test_reconnect_integration.jl") end
     end
+    _section("Lifecycle events") do
+        @testset "Lifecycle events" begin include("test_lifecycle_events.jl") end
+    end
     _section("Tokens / refresh") do
         @testset "Tokens / refresh" begin include("test_tokens.jl") end
     end
