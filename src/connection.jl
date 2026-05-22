@@ -28,9 +28,12 @@ abstract type AbstractRemoteConnection <: AbstractConnection end
     RemoteWSConnection = RemoteConnection{:ws}
     RemoteHTTPConnection = RemoteConnection{:http}
 
-Concrete remote-connection types, parametric on the transport tag (`:ws` or
-`:http`). Methods that only apply to one transport dispatch on the alias —
-e.g. `live(client::SurrealClient{<:RemoteWSConnection}, ...)`.
+Remote-connection types, parametric on the transport tag (`P` = `:ws` or
+`:http`) and the wire format (`W` = `:json` or `:cbor`). The aliases above
+are UnionAll wildcards over `W` — `RemoteWSConnection` matches both
+`RemoteConnection{:ws, :json}` and `RemoteConnection{:ws, :cbor}`. Methods
+that care only about the transport dispatch on the alias; methods that
+care about the wire add a `W` parameter (see `src/wire.jl`).
 """
 
 # --- Remote connection ---
@@ -63,7 +66,7 @@ URL schemes accepted:
 - `ws://host:port` / `wss://host:port` — WebSocket (primary, stateful)
 - `http://host:port` / `https://host:port` — HTTP (stateless)
 """
-Base.@kwdef mutable struct RemoteConnection{P} <: AbstractRemoteConnection
+Base.@kwdef mutable struct RemoteConnection{P, W} <: AbstractRemoteConnection
     "URL the client was constructed with — `ws://...`, `wss://...`, `http://...`, or `https://...`"
     url::String = ""
     "Open WebSocket handle (only used when `P == :ws`); `nothing` when disconnected or HTTP"
@@ -121,6 +124,13 @@ end
 
 const RemoteWSConnection = RemoteConnection{:ws}
 const RemoteHTTPConnection = RemoteConnection{:http}
+
+# Defaulting outer constructor: `RemoteConnection{:ws}(...)` (and the
+# `RemoteWSConnection` / `RemoteHTTPConnection` aliases over it) fill in
+# `W = :json` so test sites and pre-CBOR call paths that construct without
+# specifying a wire format keep working. New CBOR call sites construct via
+# the fully-parameterized form `RemoteConnection{:ws, :cbor}(...)`.
+RemoteConnection{P}(; kwargs...) where {P} = RemoteConnection{P, :json}(; kwargs...)
 
 # --- Client struct ---
 
@@ -247,8 +257,16 @@ function _close_remote!(conn::RemoteConnection)
     if conn.ws !== nothing
         try; HTTP.WebSockets.close(conn.ws); catch; end
     end
+    # Shutdown sentinel: empty payload of the channel's element type. The
+    # writer treats any empty msg as "exit." For a `Channel{String}` push
+    # `""`; for `Channel{Vector{UInt8}}` push `UInt8[]`.
     try
-        put!(conn.write_channel, "")
+        ch = conn.write_channel
+        if ch isa Channel{Vector{UInt8}}
+            put!(ch, UInt8[])
+        elseif ch isa Channel
+            put!(ch, "")
+        end
     catch
     end
     try
@@ -332,6 +350,7 @@ Keyword arguments:
 - `ping_interval::Float64=30.0`: Keepalive cadence; `0` disables
 - `tls_verify::Bool=true`: Verify TLS certs on `wss://`. Set `false` only for self-signed test certs
 - `rpc_timeout::Float64=30.0`: Max seconds to wait for an RPC response; `Inf` disables
+- `wire::Symbol=:cbor`: Wire format — `:cbor` (default, binary, type-faithful) or `:json` (text, legacy/debug). Selected at connect time; baked into the connection's type parameter for compile-time codec dispatch. Embedded connections ignore this parameter.
 
 Returns a `SurrealClient{C}` where `C` is the concrete connection backend type.
 
@@ -364,8 +383,10 @@ function connect(url::String;
                  reconnect_jitter::Float64=0.1,
                  ping_interval::Float64=30.0,
                  tls_verify::Bool=true,
-                 rpc_timeout::Float64=30.0)
+                 rpc_timeout::Float64=30.0,
+                 wire::Symbol=:cbor)
     scheme = _parse_scheme(url)
+    wire in (:json, :cbor) || throw(ArgumentError("Unsupported wire format: $wire (expected :json or :cbor)"))
 
     if scheme in (:ws, :wss, :http, :https)
         is_http = scheme in (:http, :https)
@@ -379,7 +400,7 @@ function connect(url::String;
         end
 
         conn = is_http ?
-            RemoteHTTPConnection(url=ws_url,
+            RemoteConnection{:http, wire}(url=ws_url,
                                  http_base_url=http_base,
                                  response_channels=Dict{Int, Channel}(),
                                  write_channel=nothing,
@@ -392,10 +413,10 @@ function connect(url::String;
                                  ping_interval=ping_interval,
                                  tls_verify=tls_verify,
                                  rpc_timeout=rpc_timeout) :
-            RemoteWSConnection(url=ws_url,
+            RemoteConnection{:ws, wire}(url=ws_url,
                                http_base_url=http_base,
                                response_channels=Dict{Int, Channel}(),
-                               write_channel=Channel{String}(32),
+                               write_channel=_new_write_channel(Val(wire)),  # pre-construction: wire is local var, not yet bound to a conn
                                notification_channels=Dict{String, Channel}(),
                                reconnect=reconnect,
                                reconnect_max_attempts=reconnect_max_attempts,
