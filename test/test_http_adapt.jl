@@ -89,6 +89,13 @@ end
     @test_throws SurrealDB.UnsupportedFeatureError _adapt("live", Any["users", false], _NSDB)
 end
 
+@testset "info → INFO FOR DB with prefix" begin
+    m, p = _adapt("info", Any[], _NSDB)
+    @test m == "query"
+    @test p[1] == _NSDB * "INFO FOR DB"
+    @test isempty(p[2])
+end
+
 @testset "non-data methods pass through" begin
     @test _adapt("signin", Any[Dict("user" => "x")], _NSDB) ==
         ("signin", Any[Dict("user" => "x")])
@@ -96,6 +103,7 @@ end
         ("authenticate", Any["tok"])
     @test _adapt("use", Any["ns", "db"], _NSDB) ==
         ("use", Any["ns", "db"])
-    @test _adapt("version", Any[], _NSDB) ==
-        ("version", Any[])
+    # version + health are server-level, no ns/db scope — stay unprefixed.
+    @test _adapt("version", Any[], _NSDB) == ("version", Any[])
+    @test _adapt("health", Any[], _NSDB) == ("health", Any[])
 end

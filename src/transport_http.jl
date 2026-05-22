@@ -137,6 +137,11 @@ function _http_adapt_method(method::String, params::Vector{Any}, prefix::String)
         arg_list = join(("\$" * n for n in names), ", ")
         vars = Dict{String, Any}(zip(names, args))
         return "query", Any[prefix * "RETURN $fn_name($arg_list)", vars]
+    elseif method == "info"
+        # `info` is scoped to the selected namespace + database; passing it
+        # through unprefixed returns root-level info instead of the database
+        # the caller `use!`'d. Rewrite to a database-scoped INFO query.
+        return "query", Any[prefix * "INFO FOR DB", Dict{String,Any}()]
     elseif method == "patch"
         # params = [what, patches::Vector{Dict{String,Any}}, diff::Bool]
         # SurrealQL: UPDATE <what> PATCH $patches [RETURN DIFF].
