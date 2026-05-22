@@ -630,16 +630,14 @@ end
 
 # --- Backend dispatch (filled by connection + embedded agents) ---
 
-function _rpc_call(client::SurrealClient{C}, method::String, params::Vector{Any};
-                   session=nothing, txn=nothing) where {C<:AbstractConnection}
-    if C <: RemoteConnection
-        return _rpc_call_remote(client, method, params; session=session, txn=txn)
-    elseif C <: EmbeddedConnection
-        return _embedded_rpc_call(client.connection, method, params)
-    else
-        throw(ConnectionError("Unknown connection backend: $C"))
-    end
+function _rpc_call(client::SurrealClient{<:RemoteConnection}, method::String, params::Vector{Any};
+                   session=nothing, txn=nothing)
+    return _rpc_call_remote(client, method, params; session=session, txn=txn)
 end
+
+# Embedded method is defined in embedded.jl as `SurrealDB._rpc_call(...)`,
+# extending this generic stub across the Embedded submodule boundary —
+# matches the pattern used by `_close_backend!` / `_use_backend!`.
 
 # Stubs — concrete methods live in connection.jl (RemoteConnection) and
 # embedded.jl (EmbeddedConnection, qualified as `SurrealDB._<name>!` so it

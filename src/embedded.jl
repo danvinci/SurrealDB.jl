@@ -117,6 +117,14 @@ end
 
 # --- RPC dispatch ---
 
+# Compile-time dispatch for embedded backend — extends the generic stub in
+# connection.jl. Lives here (not in connection.jl) because `EmbeddedConnection`
+# is defined inside this submodule and isn't visible to the parent at parse time.
+function SurrealDB._rpc_call(client::SurrealDB.SurrealClient{<:EmbeddedConnection}, method::String,
+                             params::Vector{Any}; session=nothing, txn=nothing)
+    return SurrealDB._embedded_rpc_call(client.connection, method, params)
+end
+
 function SurrealDB._embedded_rpc_call(conn::EmbeddedConnection, method::String, params::Vector{Any})
     # Substrate boundary: the C FFI ccalls want raw strings for resource
     # identifiers; coerce typed RecordID / Table here so methods.jl can pass
