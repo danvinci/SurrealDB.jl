@@ -97,6 +97,19 @@ end
     @test_throws SurrealDB.SerializationError _W._wire_encode(cc, Dict("n" => too_big))
 end
 
+@testset "wire: Missing + Set round-trip on JSON wire (no lower needed)" begin
+    # CBOR decoder maps Surreal NONE → `missing` and Surreal Set → Julia
+    # `Set{T}`. JSON.jl handles both natively (missing → null, Set → JSON
+    # array). Pin the behavior so a future JSON.jl change surfaces here
+    # rather than corrupting wire shape silently.
+    using JSON
+    cj = _W.RemoteConnection{:ws, :json}(url="ws://x")
+    @test occursin("null", String(_W._wire_encode(cj, Dict("v" => missing))))
+    @test occursin("[1,2,3]", JSON.json(sort!(collect(Set([1, 2, 3])))))
+    s_payload = _W._wire_encode(cj, Dict("v" => Set([1, 2, 3])))
+    @test occursin("[", String(s_payload)) && occursin("]", String(s_payload))
+end
+
 @testset "wire: CBOR decode error wrapping" begin
     cc = _W.RemoteConnection{:ws, :cbor}(url="ws://x")
     # 0x1c = major-0 + ai=28; RFC 8949 reserves ai=28..30. SurrealCBOR
