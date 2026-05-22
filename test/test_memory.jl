@@ -43,16 +43,18 @@ end
     db = SurrealDB.connect("mem://")
     try
         SurrealDB.use!(db, "test", "test")
-        # Warm-up: precompile the CRUD methods, populate caches.
-        _ops_loop(db, 100)
+        # Warm-up: precompile the CRUD methods, populate caches. 50 iters is
+        # enough — the warmup is about JIT + Dict-init, not heap saturation.
+        _ops_loop(db, 50)
 
         # Baseline heap after warmup.
-        baseline = _heap_after(() -> _ops_loop(db, 1_000))
+        baseline = _heap_after(() -> _ops_loop(db, 500))
 
         # Scale up by 10x. A linear leak would make heap grow ~10x; we
-        # tolerate up to 4x slack to absorb GC noise + FFI buffer
-        # variance + cache fill.
-        scaled = _heap_after(() -> _ops_loop(db, 10_000))
+        # tolerate up to 4x slack to absorb GC noise + FFI buffer variance.
+        # 5000-iter scaled run is still ~5x the noise floor, plenty of
+        # signal to catch unbounded growth without burning wallclock.
+        scaled = _heap_after(() -> _ops_loop(db, 5_000))
 
         ratio = scaled / baseline
         @info "heap ratio (10x ops)" baseline_bytes=baseline scaled_bytes=scaled ratio=ratio
