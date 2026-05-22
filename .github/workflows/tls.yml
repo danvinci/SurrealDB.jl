@@ -82,11 +82,14 @@ jobs:
             | timeout 5 openssl s_client -connect localhost:8443 -servername localhost -quiet -verify_quiet 2>/dev/null \
             | head -c 4096 | xxd | head -60 || true
 
-      # Verify the SDK actually completes a TLS handshake end-to-end. Just
-      # connecting + running a query is enough to prove wss:// works.
-      # JULIA_DEBUG surfaces per-frame logging from _ws_reader_task — needed
-      # to diagnose post-101 byte arrival when the connect fails.
-      - name: Connect via wss:// and run a query
+      # Verify the SDK actually completes a TLS handshake end-to-end on
+      # both wire formats. Connecting + running a query is enough to prove
+      # the wss:// path itself. The two-wire sweep guards against
+      # binary-frame regressions over OpenSSL.SSLStream (CBOR) and keeps
+      # the s8-stabilized JSON-over-TLS path under regression coverage now
+      # that CBOR is the default. JULIA_DEBUG surfaces per-frame logging
+      # from _ws_reader_task — needed to diagnose post-101 byte arrival.
+      - name: Connect via wss:// (cbor) and run a query
         env:
           JULIA_DEBUG: SurrealDB
         run: |
@@ -95,9 +98,24 @@ jobs:
             db = SurrealDB.connect("wss://localhost:8443";
                 ns="test", db="test",
                 auth=SurrealDB.RootAuth("root", "root"),
-                tls_verify=false)
+                tls_verify=false, wire=:cbor)
             r = SurrealDB.query(db, "SELECT * FROM 1")
-            @info "wss:// roundtrip ok" result=r
+            @info "wss://+cbor roundtrip ok" result=r
+            SurrealDB.close!(db)
+          '
+
+      - name: Connect via wss:// (json) and run a query
+        env:
+          JULIA_DEBUG: SurrealDB
+        run: |
+          julia --project=test -e '
+            using SurrealDB
+            db = SurrealDB.connect("wss://localhost:8443";
+                ns="test", db="test",
+                auth=SurrealDB.RootAuth("root", "root"),
+                tls_verify=false, wire=:json)
+            r = SurrealDB.query(db, "SELECT * FROM 1")
+            @info "wss://+json roundtrip ok" result=r
             SurrealDB.close!(db)
           '
 
