@@ -268,6 +268,14 @@ function _schedule_refresh_timer!(conn::RemoteConnection, client::SurrealClient)
     now_s = time()
     delay = max(0.0, Float64(exp) - now_s - conn.refresh_lead_time)
     conn.refresh_timer = Timer(delay) do _
+        # If a reconnect is in flight when the timer fires, `refresh!`
+        # would throw ConnectionError and the catch below would wipe the
+        # tokens — losing the very state the reconnect loop is about to
+        # replay. Skip silently; `_reconnect_apply_state!` re-schedules
+        # this timer once status returns to CONNECTED. If the access
+        # token has expired in the meantime the new delay computes to 0
+        # and the next firing exchanges immediately.
+        conn.status == STATUS_CONNECTED || return
         try
             refresh!(client)
         catch e

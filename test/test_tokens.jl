@@ -181,6 +181,39 @@ end
     end
 end
 
+@testset "timer fired during reconnect does NOT clear tokens" begin
+    # Regression: a timer firing while the connection is STATUS_RECONNECTING
+    # used to fall into refresh!'s catch path and wipe the tokens, leaving
+    # the post-reconnect session unauthenticated. Now it skips silently and
+    # waits for _reconnect_apply_state! to re-schedule.
+    exp = Int(floor(time())) + 2
+    access = _make_jwt(Dict("exp" => exp))
+    mock = MockWS.start_mock(signin_access=access, signin_refresh="REFRESH_TOK")
+    try
+        client = SurrealDB.connect("ws://127.0.0.1:$(mock.port)";
+                                   refresh_lead_time=1.8)
+        try
+            SurrealDB.signin!(client, SurrealDB.RootAuth("root", "root"))
+            tks_before = SurrealDB.tokens(client)
+            @test tks_before !== nothing
+            initial_refreshes = MockWS.refresh_count(mock)
+
+            # Simulate a reconnect-in-flight: flip status, wait for the
+            # timer to fire (~0.2s after signin), check tokens survived.
+            client.connection.status = SurrealDB.STATUS_RECONNECTING
+            sleep(0.7)
+            @test SurrealDB.tokens(client) === tks_before  # untouched
+            @test MockWS.refresh_count(mock) == initial_refreshes  # no RPC issued
+        finally
+            # Restore status before close so cleanup paths run normally.
+            client.connection.status = SurrealDB.STATUS_CONNECTED
+            SurrealDB.close!(client)
+        end
+    finally
+        MockWS.stop_mock!(mock)
+    end
+end
+
 @testset "invalidate! clears tokens and cancels timer" begin
     access = _make_jwt(Dict("exp" => Int(floor(time())) + 3600))
     mock = MockWS.start_mock(signin_access=access,
