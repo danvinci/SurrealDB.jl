@@ -27,8 +27,11 @@ jobs:
           files: lcov.info
           fail_ci_if_error: false
 
-  # Matrix across SurrealDB server versions to catch version-skew bugs.
-  # `latest` floats; the pinned tags lock in v2.x and v3.x lineages.
+  # Matrix across SurrealDB server versions and wire formats. Catches:
+  #   * version-skew bugs (`latest` floats; pinned tags lock v2.x / v3.x)
+  #   * wire-codec drift against a real server (mock-only tests echo the
+  #     codec; only a live server emits ciborium-canonical envelopes for
+  #     RPC responses, query results, errors, and notification frames)
   test-remote:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -38,6 +41,9 @@ jobs:
         surreal-image:
           - surrealdb/surrealdb:v2
           - surrealdb/surrealdb:latest
+        wire:
+          - cbor
+          - json
     steps:
       - uses: actions/checkout@v4
       - uses: julia-actions/setup-julia@v2
@@ -67,6 +73,7 @@ jobs:
         run: julia --project=test test/runtests.jl
         env:
           SURREALDB_URL: ws://localhost:8000
+          SURREALDB_WIRE: ${{ matrix.wire }}
       - name: Docker logs (always — needed on cancellation too)
         if: always()
         run: docker logs surrealdb 2>&1 | tail -200
