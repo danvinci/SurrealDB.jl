@@ -86,3 +86,18 @@ HTTP `Content-Type` / `Accept` value for this wire format.
 """
 _wire_content_type(::RemoteConnection{P, :json}) where {P} = "application/json"
 _wire_content_type(::RemoteConnection{P, :cbor}) where {P} = "application/cbor"
+
+# --- JSON.lower hooks for typed Surreal values ---
+#
+# JSON has no Tag mechanism, so RecordID / Table must serialize as their
+# canonical string forms (`"user:alice"`, `"user"`) — the wire shape the
+# server expects. Default JSON.jl behavior would emit struct-shaped dicts
+# (`{"table": "...", "id": "..."}`) which the server rejects.
+#
+# Lives at the wire seam, not in `cbor/types/`, because `cbor/` is
+# substrate-isolated (no JSON dep). The lower hooks make `JSON.json(x)`
+# correct wherever a typed value lands in a payload, so the methods.jl
+# layer can pass typed values through untouched and the CBOR encoder gets
+# them with full Tag fidelity.
+JSON.lower(r::RecordID) = string(r)
+JSON.lower(t::Table) = t.name
