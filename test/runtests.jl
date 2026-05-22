@@ -99,6 +99,9 @@ end
     _section("Tokens / refresh") do
         @testset "Tokens / refresh" begin include("test_tokens.jl") end
     end
+    _section("Version check") do
+        @testset "Version check" begin include("test_version_check.jl") end
+    end
     _section("Load resilience") do
         @testset "Load resilience" begin include("test_load_resilience.jl") end
     end

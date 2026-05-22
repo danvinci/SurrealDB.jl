@@ -291,6 +291,29 @@ function Base.showerror(io::IO, e::UnsupportedFeatureError)
 end
 
 """
+    UnsupportedVersionError(server_version, minimum, maximum)
+
+The connected SurrealDB server reports a version outside the SDK's supported
+range. Thrown by `connect()` after the version probe, before any user code
+sees the client. Mirrors the JS SDK's same-named error.
+
+- `server_version` is the raw version string the server returned.
+- `minimum` / `maximum` are the SDK's accepted bounds (strings, semver-compatible).
+"""
+struct UnsupportedVersionError <: SurrealError
+    server_version::String
+    minimum::String
+    maximum::Union{String, Nothing}
+end
+
+function Base.showerror(io::IO, e::UnsupportedVersionError)
+    print(io, "UnsupportedVersionError: server reports version `", e.server_version,
+              "`, but this SDK requires >= ", e.minimum)
+    e.maximum !== nothing && print(io, " and < ", e.maximum)
+    print(io, ". Upgrade the server or pin the SDK to a compatible release.")
+end
+
+"""
     UnexpectedResponseError(message)
 
 The server returned a response in an unexpected shape. Used when the wire

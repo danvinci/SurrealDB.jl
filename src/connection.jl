@@ -362,6 +362,7 @@ Keyword arguments:
 - `rpc_timeout::Float64=30.0`: Max seconds to wait for an RPC response; `Inf` disables
 - `refresh_lead_time::Float64=30.0`: How far before the access token's `exp` claim to fire the proactive refresh. Only active when the server issued a refresh token (`WITH REFRESH` scopes); otherwise no timer is scheduled.
 - `wire::Symbol=:cbor`: Wire format — `:cbor` (default, binary, type-faithful) or `:json` (text, legacy/debug). Selected at connect time; baked into the connection's type parameter for compile-time codec dispatch. Embedded connections ignore this parameter.
+- `check_version::Bool=true`: After the socket comes up, probe `version()` and throw [`UnsupportedVersionError`](@ref) if the server is below [`MINIMUM_SERVER_VERSION`](@ref). Set `false` for development against unreleased server builds.
 
 Returns a `SurrealClient{C}` where `C` is the concrete connection backend type.
 
@@ -396,7 +397,8 @@ function connect(url::String;
                  tls_verify::Bool=true,
                  rpc_timeout::Float64=30.0,
                  refresh_lead_time::Float64=30.0,
-                 wire::Symbol=:cbor)
+                 wire::Symbol=:cbor,
+                 check_version::Bool=true)
     scheme = _parse_scheme(url)
     wire in (:json, :cbor) || throw(ArgumentError("Unsupported wire format: $wire (expected :json or :cbor)"))
 
@@ -457,6 +459,18 @@ function connect(url::String;
         client = SurrealClient(conn, nothing, nothing, nothing, nothing, Dict{String, Any}())
         conn.client = client
 
+        # Version probe — runs against the live socket before any user code
+        # sees the client. Throws UnsupportedVersionError on mismatch; close
+        # the connection cleanly so we don't leak a half-open handle.
+        if check_version
+            try
+                _check_server_version(client)
+            catch e
+                try; close!(client); catch; end
+                rethrow()
+            end
+        end
+
         if auth !== nothing
             signin!(client, auth)
         end
@@ -480,6 +494,58 @@ function connect(url::String;
     else
         throw(ArgumentError("Unsupported URL scheme: $url"))
     end
+end
+
+# --- Version compatibility check ---
+
+"""
+    MINIMUM_SERVER_VERSION
+
+Lowest SurrealDB server version this SDK has been tested against. Connect-time
+version probes throw [`UnsupportedVersionError`](@ref) below this; bypass with
+`connect(...; check_version=false)`.
+"""
+const MINIMUM_SERVER_VERSION = "2.0.0"
+
+"""
+    MAXIMUM_SERVER_VERSION
+
+Upper bound (exclusive) for the supported server-version range, or `nothing`
+to disable the cap. Currently uncapped — bumped when a major server release
+introduces breaking wire changes.
+"""
+const MAXIMUM_SERVER_VERSION = nothing
+
+# Pull the semver string out of whatever shape `version()` happens to return
+# on this server build: "1.2.3", "surrealdb-1.2.3", "1.2.3+build.4", etc.
+# Returns nothing if no semver shape is present.
+function _parse_server_semver(raw::AbstractString)
+    m = match(r"(\d+)\.(\d+)\.(\d+)", raw)
+    m === nothing && return nothing
+    return VersionNumber(parse(Int, m.captures[1]),
+                         parse(Int, m.captures[2]),
+                         parse(Int, m.captures[3]))
+end
+
+function _check_server_version(client::SurrealClient)
+    raw = try
+        v = version(client)
+        v.version
+    catch
+        # version() RPC unsupported on very old builds; tolerate rather than block.
+        return nothing
+    end
+    parsed = _parse_server_semver(string(raw))
+    parsed === nothing && return nothing  # unrecognized shape → don't block
+    min_v = VersionNumber(MINIMUM_SERVER_VERSION)
+    if parsed < min_v
+        throw(UnsupportedVersionError(string(raw), MINIMUM_SERVER_VERSION, MAXIMUM_SERVER_VERSION))
+    end
+    if MAXIMUM_SERVER_VERSION !== nothing
+        max_v = VersionNumber(MAXIMUM_SERVER_VERSION)
+        parsed < max_v || throw(UnsupportedVersionError(string(raw), MINIMUM_SERVER_VERSION, MAXIMUM_SERVER_VERSION))
+    end
+    return parsed
 end
 
 """

@@ -69,7 +69,7 @@ const EXPECTED_EXPORTS = Set([
     :ThrownError, :SerializationError, :NotAllowedError, :NotFoundError,
     :AlreadyExistsError, :InternalError,
     :EmbeddedFFIError, :ConnectionUnavailableError, :UnsupportedEngineError,
-    :UnsupportedFeatureError, :UnexpectedResponseError,
+    :UnsupportedFeatureError, :UnsupportedVersionError, :UnexpectedResponseError,
 
     # CBOR wire-format types (re-exported from SurrealDB.SurrealCBOR)
     :SurrealDecimal, :SurrealDateTime, :SurrealDuration, :SurrealFile,
