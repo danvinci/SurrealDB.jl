@@ -38,7 +38,7 @@ export RecordID, Table, SurrealValue
 export RootAuth, NamespaceAuth, ScopedAuth, JwtAuth
 export Relationship, LiveSubscription, LiveNotification
 
-# --- CBOR wire-format types (re-exported from SurrealDB.SurrealCBOR) ---
+# --- CBOR wire-format types (re-exported from SurrealDB.SurrealTypes) ---
 export SurrealDecimal, SurrealDateTime, SurrealDuration, SurrealFile
 export SurrealRange, BoundIncluded, BoundExcluded
 export GeometryPoint, GeometryLine, GeometryPolygon
@@ -52,15 +52,22 @@ export EmbeddedFFIError, ConnectionUnavailableError, UnsupportedEngineError, Uns
 
 # --- Implementation modules ---
 
-# SurrealCBOR: substrate-isolated CBOR codec submodule. Stdlib-only deps;
-# no upward imports into SurrealDB.* — designed for clean extraction as a
-# standalone package later. Access via SurrealDB.SurrealCBOR.*.
-include("cbor/SurrealCBOR.jl")
-using .SurrealCBOR: RecordID, Table, SurrealDecimal, SurrealDateTime, SurrealDuration,
+# SurrealTypes: typed wire-format values (RecordID, Table, Surreal*, Geometry*).
+# Owned at the parent level so codec submodules (SurrealCBOR today, future
+# JSON-typed) extend `encode` on these types without piracy. Substrate-isolated:
+# stdlib-only deps, no upward imports.
+include("types/SurrealTypes.jl")
+using .SurrealTypes: RecordID, Table, SurrealDecimal, SurrealDateTime, SurrealDuration,
     SurrealFile, SurrealRange, BoundIncluded, BoundExcluded,
     GeometryPoint, GeometryLine, GeometryPolygon,
     GeometryMultiPoint, GeometryMultiLine, GeometryMultiPolygon,
     GeometryCollection
+
+# SurrealCBOR: substrate-isolated CBOR codec submodule. Stdlib-only deps plus
+# the sibling SurrealTypes import for wire-format type definitions. No upward
+# imports into SurrealDB.* — designed for clean extraction as a standalone
+# package later. Access via SurrealDB.SurrealCBOR.*.
+include("cbor/SurrealCBOR.jl")
 
 include("errors.jl")
 include("types.jl")

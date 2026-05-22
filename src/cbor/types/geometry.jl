@@ -15,102 +15,13 @@
 #   Tag(93) MultiPolygon — array of Tag(90)
 #   Tag(94) Collection   — array of any Geometry tag
 
-# ─── Types ──────────────────────────────────────────────────────────────
-
-"""
-    GeometryPoint(x::Real, y::Real)
-
-2D point in lon/lat (or x/y) order. Both coordinates stored as
-`Float64` — matches server's `f64` payload.
-"""
-struct GeometryPoint
-    x::Float64
-    y::Float64
-    GeometryPoint(x::Real, y::Real) = new(Float64(x), Float64(y))
-end
-
-"""
-    GeometryLine(points::Vector{GeometryPoint})
-
-Open or closed line — array of points. SurrealDB doesn't enforce
-minimum length here; an empty `Line` is technically representable
-though semantically rare.
-"""
-struct GeometryLine
-    points::Vector{GeometryPoint}
-end
-
-"""
-    GeometryPolygon(exterior::GeometryLine, interiors::Vector{GeometryLine}=GeometryLine[])
-
-Polygon with one outer ring and zero or more inner holes. Server requires
-non-empty (at least one exterior).
-"""
-struct GeometryPolygon
-    exterior::GeometryLine
-    interiors::Vector{GeometryLine}
-    GeometryPolygon(exterior::GeometryLine, interiors::Vector{GeometryLine}=GeometryLine[]) =
-        new(exterior, interiors)
-end
-
-"""
-    GeometryMultiPoint(points::Vector{GeometryPoint})
-
-Collection of independent points.
-"""
-struct GeometryMultiPoint
-    points::Vector{GeometryPoint}
-end
-
-"""
-    GeometryMultiLine(lines::Vector{GeometryLine})
-
-Collection of independent lines.
-"""
-struct GeometryMultiLine
-    lines::Vector{GeometryLine}
-end
-
-"""
-    GeometryMultiPolygon(polygons::Vector{GeometryPolygon})
-
-Collection of independent polygons.
-"""
-struct GeometryMultiPolygon
-    polygons::Vector{GeometryPolygon}
-end
-
-"""
-    GeometryCollection(geometries::Vector{Any})
-
-Heterogeneous collection — any mix of the Geometry types above.
-Stored as `Vector{Any}` since the elements may differ per index.
-"""
-struct GeometryCollection
-    geometries::Vector{Any}
-    GeometryCollection(gs::AbstractVector) = new(Vector{Any}(gs))
-end
+# Type definitions + Base.* overloads live in ../types/SurrealTypes.jl.
 
 const _AnyGeometry = Union{GeometryPoint, GeometryLine, GeometryPolygon,
                            GeometryMultiPoint, GeometryMultiLine,
                            GeometryMultiPolygon, GeometryCollection}
 
 _is_geometry(g) = g isa _AnyGeometry
-
-# Equality + hash via field-wise comparison (Julia immutables already do
-# this for ==; we override hash to be deterministic across sessions).
-for T in (:GeometryPoint, :GeometryLine, :GeometryPolygon,
-          :GeometryMultiPoint, :GeometryMultiLine,
-          :GeometryMultiPolygon, :GeometryCollection)
-    @eval Base.:(==)(a::$T, b::$T) =
-        all(getfield(a, f) == getfield(b, f) for f in fieldnames($T))
-    @eval function Base.hash(g::$T, h::UInt)
-        for f in fieldnames($T)
-            h = hash(getfield(g, f), h)
-        end
-        return hash($(QuoteNode(T)), h)
-    end
-end
 
 # ─── Encode ─────────────────────────────────────────────────────────────
 

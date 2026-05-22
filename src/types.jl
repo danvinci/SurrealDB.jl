@@ -1,10 +1,9 @@
 # Core data types for SurrealDB.jl
 
-# Wire-format Surreal types (RecordID, Table, ...) live under
-# `cbor/types/` per design-cbor-transport.md — substrate-isolated codec
-# layer designed for clean extraction. Re-exported at the SurrealDB
-# level via `using .SurrealCBOR` in SurrealDB.jl so user-facing names
-# resolve unchanged.
+# Wire-format Surreal types (RecordID, Table, Surreal*, Geometry*) live in
+# the sibling `SurrealTypes` submodule under `src/types/SurrealTypes.jl`.
+# Re-exported at the SurrealDB level via `using .SurrealTypes` in
+# SurrealDB.jl so user-facing names resolve unchanged.
 #
 # What stays in this file: auth types, SurrealValue (FFI marshaling),
 # Relationship, LiveSubscription, LiveNotification, ConnectionStatus —

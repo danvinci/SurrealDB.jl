@@ -1,7 +1,9 @@
 # SurrealCBOR — SurrealDB-flavored CBOR (RFC 8949) codec.
 #
-# Internal submodule of SurrealDB.jl. Designed for clean extraction as a
-# standalone package later; do NOT import from parent SurrealDB modules.
+# Internal submodule of SurrealDB.jl. Stdlib only, plus sibling SurrealTypes
+# for wire-format type definitions. No deps on transport / methods /
+# connection layers — extraction path: SurrealTypes + SurrealCBOR as two
+# packages, CBOR depending on Types.
 #
 # Layers (see _notes/_projects/_surrealdb/design-cbor-transport.md):
 #   L1  io.jl       — RFC 8949 §3 head bytes (this module)
@@ -15,6 +17,15 @@ module SurrealCBOR
 
 using UUIDs
 using Dates
+
+# Sibling SurrealTypes: typed wire-format values whose encode methods
+# this module extends. SurrealTypes itself has no upward deps.
+using ..SurrealTypes: RecordID, Table,
+    SurrealDecimal, SurrealDateTime, SurrealDuration, SurrealFile,
+    SurrealRange, BoundIncluded, BoundExcluded,
+    GeometryPoint, GeometryLine, GeometryPolygon,
+    GeometryMultiPoint, GeometryMultiLine, GeometryMultiPolygon,
+    GeometryCollection
 
 """
     CBORError(msg)
@@ -33,10 +44,10 @@ include("registry.jl")
 include("codec.jl")
 include("tags.jl")
 
-# L3 wire-format types (under cbor/types/, substrate-isolated). Each
-# file may also register its tag decoder + define encode methods; some
-# (Table) currently ship as type-only and grow CBOR methods alongside
-# their Phase 3 tag work.
+# L3 tag handlers. Each file extends `encode` on the matching SurrealTypes
+# struct (imported above), defines its `_decode_<thing>` helper, and calls
+# `_register_tag!` to wire it into the decoder dispatch table. Struct
+# definitions + Base.* overloads live in ../types/SurrealTypes.jl.
 include("types/none.jl")
 include("types/recordid.jl")
 include("types/table.jl")
@@ -56,11 +67,6 @@ export MAJOR_UINT, MAJOR_NINT, MAJOR_BYTES, MAJOR_TEXT,
 export AI_FALSE, AI_TRUE, AI_NULL, AI_UNDEFINED,
        AI_SIMPLE_1B, AI_FLOAT16, AI_FLOAT32, AI_FLOAT64, AI_INDEFINITE
 export encode, decode, Tagged, Undefined, undefined
-export RecordID, Table, SurrealDecimal, SurrealDateTime, SurrealDuration, SurrealFile
-export SurrealRange, BoundIncluded, BoundExcluded
-export GeometryPoint, GeometryLine, GeometryPolygon,
-       GeometryMultiPoint, GeometryMultiLine, GeometryMultiPolygon,
-       GeometryCollection
 export TAG_NONE, TAG_TABLE, TAG_RECORDID, TAG_STRING_UUID, TAG_STRING_DECIMAL,
        TAG_CUSTOM_DATETIME, TAG_STRING_DURATION, TAG_CUSTOM_DURATION,
        TAG_SPEC_DATETIME, TAG_SPEC_UUID, TAG_RANGE, TAG_BOUND_INCLUDED,

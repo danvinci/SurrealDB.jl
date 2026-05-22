@@ -9,74 +9,7 @@
 # (unbounded). Bound payloads can themselves be ranges (range-of-range
 # legal). Refs: convert.rs:193, 511-542 (range), 514-518 (bound markers).
 
-"""
-    BoundIncluded(value)
-
-Inclusive range bound (`[value, ...`). The wrapped value is any
-serializable Julia value.
-"""
-struct BoundIncluded
-    value::Any
-end
-
-"""
-    BoundExcluded(value)
-
-Exclusive range bound (`(value, ...`). The wrapped value is any
-serializable Julia value.
-"""
-struct BoundExcluded
-    value::Any
-end
-
-Base.:(==)(a::BoundIncluded, b::BoundIncluded) = a.value == b.value
-Base.:(==)(a::BoundExcluded, b::BoundExcluded) = a.value == b.value
-Base.hash(b::BoundIncluded, h::UInt) = hash(b.value, hash(:BoundIncluded, h))
-Base.hash(b::BoundExcluded, h::UInt) = hash(b.value, hash(:BoundExcluded, h))
-
-Base.show(io::IO, b::BoundIncluded) = print(io, "BoundIncluded(", b.value, ")")
-Base.show(io::IO, b::BoundExcluded) = print(io, "BoundExcluded(", b.value, ")")
-
-"""
-    SurrealRange(start, stop)
-
-Half-open or fully-bounded range. Each of `start` / `stop` is one of:
-
-- [`BoundIncluded`](@ref) — inclusive bound
-- [`BoundExcluded`](@ref) — exclusive bound
-- `nothing` — unbounded side
-
-```julia
-SurrealRange(BoundIncluded(1), BoundExcluded(10))   # [1, 10)
-SurrealRange(BoundIncluded(1), nothing)             # [1, ∞)
-SurrealRange(nothing, BoundExcluded(0))             # (-∞, 0)
-```
-"""
-struct SurrealRange
-    start::Any
-    stop::Any
-    function SurrealRange(start, stop)
-        _validate_bound(start, "start")
-        _validate_bound(stop, "stop")
-        new(start, stop)
-    end
-end
-
-function _validate_bound(b, name)
-    isnothing(b) || b isa BoundIncluded || b isa BoundExcluded || throw(ArgumentError(
-        "SurrealRange $name must be BoundIncluded, BoundExcluded, or nothing; got $(typeof(b))"))
-end
-
-Base.:(==)(a::SurrealRange, b::SurrealRange) =
-    a.start == b.start && a.stop == b.stop
-Base.hash(r::SurrealRange, h::UInt) =
-    hash(r.stop, hash(r.start, hash(:SurrealRange, h)))
-
-function Base.show(io::IO, r::SurrealRange)
-    print(io, "SurrealRange(", r.start, ", ", r.stop, ")")
-end
-
-# --- CBOR encode / decode ---
+# Type definitions + Base.* overloads live in ../types/SurrealTypes.jl.
 
 function encode(io::IO, b::BoundIncluded)
     n = write_head(io, MAJOR_TAG, TAG_BOUND_INCLUDED)

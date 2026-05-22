@@ -6,50 +6,8 @@
 #                              Ref: convert.rs:132-155, 380-393.
 #   TAG_STRING_DURATION (13) — SurrealQL duration text (e.g. `"1h30m"`).
 #                              Decode-only. Ref: convert.rs:124-130.
-#
-# Julia type: `SurrealDuration(seconds::UInt64, nanos::UInt32)`. Stdlib
-# `Dates.Period` lacks nanosecond resolution natively, so we own the
-# wire-fidelity type as with `SurrealDateTime`.
 
-"""
-    SurrealDuration(seconds::Integer, nanos::Integer)
-
-Wire-format duration: non-negative seconds + sub-second nanoseconds
-(`0..999_999_999`). Server-canonical encode emits the shortest form:
-
-- `(0, 0)`        → empty array
-- `(s, 0)`        → `[s]`
-- `(s, ns)`       → `[s, ns]`
-
-```julia
-SurrealDuration(0, 0)              # zero
-SurrealDuration(3600, 0)           # 1h
-SurrealDuration(0, 500_000_000)    # 0.5s
-SurrealDuration(3600, 500_000_000) # 1h 0.5s
-```
-"""
-struct SurrealDuration
-    seconds::UInt64
-    nanos::UInt32
-    function SurrealDuration(seconds::Integer, nanos::Integer)
-        seconds >= 0 || throw(ArgumentError(
-            "seconds must be non-negative, got $seconds"))
-        0 <= nanos < 1_000_000_000 || throw(ArgumentError(
-            "nanos must be in [0, 1_000_000_000), got $nanos"))
-        new(UInt64(seconds), UInt32(nanos))
-    end
-end
-
-Base.:(==)(a::SurrealDuration, b::SurrealDuration) =
-    a.seconds == b.seconds && a.nanos == b.nanos
-Base.hash(d::SurrealDuration, h::UInt) =
-    hash(d.nanos, hash(d.seconds, hash(:SurrealDuration, h)))
-
-function Base.show(io::IO, d::SurrealDuration)
-    print(io, "SurrealDuration(", d.seconds, ", ", d.nanos, ")")
-end
-
-# --- CBOR encode / decode ---
+# Type definition + Base.* overloads live in ../types/SurrealTypes.jl.
 
 # Encode: server-canonical compact form (convert.rs:384-391).
 function encode(io::IO, d::SurrealDuration)
