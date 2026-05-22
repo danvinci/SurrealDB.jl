@@ -21,6 +21,10 @@ SurrealDB.EmbeddedConnection
 
 ```@docs
 SurrealDB.ConnectionStatus
+SurrealDB.STATUS_DISCONNECTED
+SurrealDB.STATUS_CONNECTING
+SurrealDB.STATUS_CONNECTED
+SurrealDB.STATUS_RECONNECTING
 SurrealDB.LifecycleEvent
 SurrealDB.AbstractSurrealLogger
 SurrealDB.NullLogger
