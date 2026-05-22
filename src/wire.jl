@@ -89,15 +89,88 @@ _wire_content_type(::RemoteConnection{P, :cbor}) where {P} = "application/cbor"
 
 # --- JSON.lower hooks for typed Surreal values ---
 #
-# JSON has no Tag mechanism, so RecordID / Table must serialize as their
-# canonical string forms (`"user:alice"`, `"user"`) — the wire shape the
-# server expects. Default JSON.jl behavior would emit struct-shaped dicts
-# (`{"table": "...", "id": "..."}`) which the server rejects.
+# JSON has no Tag mechanism, so typed values must serialize to canonical
+# wire shapes the server understands natively:
+#
+#   RecordID / Table  → bare strings ("user:alice", "user")
+#   SurrealDecimal    → numeric string ("123.45") — preserves precision
+#   SurrealDateTime   → ISO 8601 with nanosecond fractional seconds
+#   SurrealDuration   → SurrealQL compact form ("1h30m500ns")
+#   SurrealFile       → "bucket:key"
+#   Geometry*         → GeoJSON object — universally accepted
+#   SurrealRange      → {start, stop} object with inclusivity markers
+#   Bound{In,Ex}clud  → {value, inclusive} object
 #
 # Lives at the wire seam, not in `cbor/types/`, because `cbor/` is
-# substrate-isolated (no JSON dep). The lower hooks make `JSON.json(x)`
-# correct wherever a typed value lands in a payload, so the methods.jl
-# layer can pass typed values through untouched and the CBOR encoder gets
-# them with full Tag fidelity.
+# substrate-isolated (no JSON dep). These lowers make `JSON.json(x)`
+# correct wherever a typed value lands in a user payload — methods.jl
+# passes typed values through untouched, the CBOR encoder gets full Tag
+# fidelity via `encode(io, ::T)`, and the JSON wire gets the canonical
+# string / GeoJSON shape via these hooks.
+#
+# JSON wire is fundamentally lossy on the timestamp / duration / decimal
+# types (no type discriminator); the lowers emit the most faithful
+# string representation. `wire=:cbor` is the lossless path.
+
 JSON.lower(r::RecordID) = string(r)
 JSON.lower(t::Table) = t.name
+
+JSON.lower(d::SurrealDecimal) = d.value
+
+# ISO 8601 with 9-digit fractional seconds. UTC; SurrealDB stores all
+# datetimes in UTC and emits with a `Z` suffix on the JSON wire.
+function JSON.lower(dt::SurrealDateTime)
+    base = Dates.unix2datetime(dt.seconds)  # second precision
+    head = Dates.format(base, "yyyy-mm-ddTHH:MM:SS")
+    return string(head, ".", lpad(string(dt.nanos), 9, '0'), "Z")
+end
+
+# SurrealQL compact duration form: `<n>s<n>ns` covers all values losslessly.
+# Empty duration emits `"0ns"` rather than `""` so server parses unambiguously.
+function JSON.lower(d::SurrealDuration)
+    if d.seconds == 0 && d.nanos == 0
+        return "0ns"
+    elseif d.nanos == 0
+        return string(d.seconds, "s")
+    elseif d.seconds == 0
+        return string(d.nanos, "ns")
+    else
+        return string(d.seconds, "s", d.nanos, "ns")
+    end
+end
+
+JSON.lower(f::SurrealFile) = string(f.bucket, ":", f.key)
+
+# --- Geometry: GeoJSON shapes (RFC 7946) ---
+#
+# GeoJSON is the lingua franca; SurrealDB accepts it on the JSON wire.
+# Coordinates are nested arrays — `_geojson_coords` rebuilds them from
+# the typed geometry hierarchy without leaking nested `GeometryPoint`
+# structs into the JSON output.
+
+_geojson_coords(p::GeometryPoint) = [p.x, p.y]
+_geojson_coords(l::GeometryLine) = [_geojson_coords(p) for p in l.points]
+_geojson_coords(p::GeometryPolygon) =
+    pushfirst!([_geojson_coords(r) for r in p.interiors], _geojson_coords(p.exterior))
+_geojson_coords(mp::GeometryMultiPoint) = [_geojson_coords(p) for p in mp.points]
+_geojson_coords(ml::GeometryMultiLine) = [_geojson_coords(l) for l in ml.lines]
+_geojson_coords(mpg::GeometryMultiPolygon) = [_geojson_coords(p) for p in mpg.polygons]
+
+JSON.lower(p::GeometryPoint)         = Dict("type" => "Point",           "coordinates" => _geojson_coords(p))
+JSON.lower(l::GeometryLine)          = Dict("type" => "LineString",      "coordinates" => _geojson_coords(l))
+JSON.lower(p::GeometryPolygon)       = Dict("type" => "Polygon",         "coordinates" => _geojson_coords(p))
+JSON.lower(mp::GeometryMultiPoint)   = Dict("type" => "MultiPoint",      "coordinates" => _geojson_coords(mp))
+JSON.lower(ml::GeometryMultiLine)    = Dict("type" => "MultiLineString", "coordinates" => _geojson_coords(ml))
+JSON.lower(mpg::GeometryMultiPolygon)= Dict("type" => "MultiPolygon",    "coordinates" => _geojson_coords(mpg))
+# GeometryCollection nests heterogeneous geoms; each gets lowered recursively
+# when JSON.json walks the geometries vector.
+JSON.lower(gc::GeometryCollection)   = Dict("type" => "GeometryCollection", "geometries" => gc.geometries)
+
+# --- Range + bounds ---
+#
+# JSON has no native half-open range concept. Emit a structured object
+# with explicit inclusivity flags so the server (or a peer SDK) can
+# reconstruct the semantics. Unbounded sides land as JSON null.
+JSON.lower(b::BoundIncluded) = Dict("value" => b.value, "inclusive" => true)
+JSON.lower(b::BoundExcluded) = Dict("value" => b.value, "inclusive" => false)
+JSON.lower(r::SurrealRange) = Dict("start" => r.start, "stop" => r.stop)

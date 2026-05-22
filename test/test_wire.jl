@@ -178,6 +178,71 @@ end
     @test dec_ct["params"][1] isa SurrealDB.Table
     @test dec_ct["params"][1].name == "user"
 
+    # --- The rest of the typed-value family ---
+
+    cj_env(v) = _W._wire_encode(cj, Dict("v" => v))
+    cc_env(v) = _W._wire_encode(cc, Dict("v" => v))
+
+    # Decimal: bare numeric string, no quoting of struct fields.
+    d = SurrealDecimal("123.45")
+    @test occursin("\"v\":\"123.45\"", cj_env(d))
+    @test 0xca in cc_env(d)  # Tag 10
+    @test _W._wire_decode(cc, cc_env(d)) == Dict("v" => d)
+
+    # DateTime: ISO 8601 with 9-digit fractional seconds + Z.
+    dt = SurrealDateTime(1700000000, 123456789)
+    j = String(cj_env(dt))
+    @test occursin("\"v\":\"2023-11-14T22:13:20.123456789Z\"", j)
+    @test _W._wire_decode(cc, cc_env(dt)) == Dict("v" => dt)
+
+    # Duration: compact SurrealQL form, all four shape branches.
+    @test occursin("\"v\":\"0ns\"",          String(cj_env(SurrealDuration(0, 0))))
+    @test occursin("\"v\":\"60s\"",          String(cj_env(SurrealDuration(60, 0))))
+    @test occursin("\"v\":\"750ns\"",        String(cj_env(SurrealDuration(0, 750))))
+    @test occursin("\"v\":\"42s500ns\"",     String(cj_env(SurrealDuration(42, 500))))
+
+    # File: "bucket:key" — same shape as RecordID-style refs.
+    f = SurrealFile("bucket-a", "key-b")
+    @test occursin("\"v\":\"bucket-a:key-b\"", String(cj_env(f)))
+    @test _W._wire_decode(cc, cc_env(f)) == Dict("v" => f)
+
+    # Geometry: GeoJSON shape (presence of type + coordinates fields).
+    pt = GeometryPoint(1.5, 2.5)
+    jpt = String(cj_env(pt))
+    @test occursin("\"type\":\"Point\"", jpt)
+    @test occursin("\"coordinates\":[1.5,2.5]", jpt)
+    @test _W._wire_decode(cc, cc_env(pt)) == Dict("v" => pt)
+
+    poly = GeometryPolygon(
+        GeometryLine([GeometryPoint(0.0,0.0), GeometryPoint(1.0,0.0),
+                      GeometryPoint(1.0,1.0), GeometryPoint(0.0,0.0)]),
+        GeometryLine[]
+    )
+    jpoly = String(cj_env(poly))
+    @test occursin("\"type\":\"Polygon\"", jpoly)
+    @test occursin("\"coordinates\":[[[0.0,0.0]", jpoly)
+    @test _W._wire_decode(cc, cc_env(poly)) == Dict("v" => poly)
+
+    # GeometryCollection nests recursively through JSON.lower.
+    gc = GeometryCollection([GeometryPoint(0.0,0.0),
+                              GeometryMultiPoint([GeometryPoint(1.0,1.0)])])
+    jgc = String(cj_env(gc))
+    @test occursin("\"type\":\"GeometryCollection\"", jgc)
+    @test occursin("\"type\":\"Point\"", jgc)
+    @test occursin("\"type\":\"MultiPoint\"", jgc)
+
+    # Range: structured object with explicit inclusivity; unbounded → null.
+    rg = SurrealRange(BoundIncluded(1), BoundExcluded(10))
+    jrg = String(cj_env(rg))
+    @test occursin("\"inclusive\":true", jrg)
+    @test occursin("\"inclusive\":false", jrg)
+    @test occursin("\"value\":1", jrg)
+    @test occursin("\"value\":10", jrg)
+    junb = String(cj_env(SurrealRange(BoundIncluded(1), nothing)))
+    @test occursin("\"stop\":null", junb)
+    # CBOR round-trip preserves Range structure.
+    @test _W._wire_decode(cc, cc_env(rg)) == Dict("v" => rg)
+
     # --- Embedded inside a data Dict (insert_relation shape) ---
     payload = Dict{String, Any}(
         "in"  => SurrealDB.RecordID("person", "john"),
