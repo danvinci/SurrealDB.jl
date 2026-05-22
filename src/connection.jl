@@ -626,10 +626,11 @@ const MINIMUM_SERVER_VERSION = "2.0.0"
     MAXIMUM_SERVER_VERSION
 
 Upper bound (exclusive) for the supported server-version range, or `nothing`
-to disable the cap. Currently uncapped — bumped when a major server release
-introduces breaking wire changes.
+to disable the cap. Pinned to mark untested territory — servers at or above
+this version are likely to ship wire-format changes the SDK hasn't seen.
+Bump after live-server shakedown against the next major.
 """
-const MAXIMUM_SERVER_VERSION = nothing
+const MAXIMUM_SERVER_VERSION = "4.0.0"
 
 # Pull the semver string out of whatever shape `version()` happens to return
 # on this server build: "1.2.3", "surrealdb-1.2.3", "1.2.3+build.4", etc.
@@ -646,17 +647,23 @@ function _check_server_version(client::SurrealClient)
     raw = try
         v = version(client)
         v.version
-    catch
-        # version() RPC unsupported on very old builds; tolerate rather than block.
+    catch e
+        # version() RPC unsupported on very old builds, or blocked by a
+        # misconfigured proxy/firewall. Surface as a warning so operators
+        # know the check was skipped; don't block the connect.
+        @warn "SurrealDB version probe failed; skipping compat check" exception=e
         return nothing
     end
     parsed = _parse_server_semver(string(raw))
-    parsed === nothing && return nothing  # unrecognized shape → don't block
+    if isnothing(parsed)
+        @warn "SurrealDB server returned unrecognized version shape; skipping compat check" raw=raw
+        return nothing
+    end
     min_v = VersionNumber(MINIMUM_SERVER_VERSION)
     if parsed < min_v
         throw(UnsupportedVersionError(string(raw), MINIMUM_SERVER_VERSION, MAXIMUM_SERVER_VERSION))
     end
-    if MAXIMUM_SERVER_VERSION !== nothing
+    if !isnothing(MAXIMUM_SERVER_VERSION)
         max_v = VersionNumber(MAXIMUM_SERVER_VERSION)
         parsed < max_v || throw(UnsupportedVersionError(string(raw), MINIMUM_SERVER_VERSION, MAXIMUM_SERVER_VERSION))
     end
