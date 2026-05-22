@@ -98,7 +98,7 @@ function _decode_datetime_string(payload)
     payload isa AbstractString || throw(CBORError(
         "TAG_SPEC_DATETIME (0) payload must be text; got $(typeof(payload))"))
     m = match(_ISO_DATETIME_RE, payload)
-    m === nothing && throw(CBORError(
+    isnothing(m) && throw(CBORError(
         "TAG_SPEC_DATETIME (0): unrecognized RFC 3339 datetime `$payload`"))
 
     year, month, day = parse(Int, m.captures[1]), parse(Int, m.captures[2]), parse(Int, m.captures[3])
@@ -119,7 +119,7 @@ function _decode_datetime_string(payload)
 
     # Fractional seconds → nanos. Pad / truncate to 9 digits.
     nanos = UInt32(0)
-    if m.captures[7] !== nothing
+    if !isnothing(m.captures[7])
         frac = m.captures[7]
         frac = length(frac) >= 9 ? frac[1:9] : rpad(frac, 9, '0')
         nanos = parse(UInt32, frac)

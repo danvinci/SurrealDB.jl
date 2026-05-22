@@ -84,7 +84,7 @@ end
 
 ValidationError(message::AbstractString; parameter_name=nothing, is_parse_error::Bool=false) =
     ValidationError(String(message),
-                    parameter_name === nothing ? nothing : String(parameter_name),
+                    isnothing(parameter_name) ? nothing : String(parameter_name),
                     is_parse_error)
 
 Base.showerror(io::IO, e::ValidationError) = print(io, "ValidationError: ", e.message)
@@ -147,7 +147,7 @@ NotAllowedError(message::AbstractString;
                 is_invalid_auth::Bool=false,
                 method_name=nothing) =
     NotAllowedError(String(message), is_token_expired, is_invalid_auth,
-                    method_name === nothing ? nothing : String(method_name))
+                    isnothing(method_name) ? nothing : String(method_name))
 
 Base.showerror(io::IO, e::NotAllowedError) = print(io, "NotAllowedError: ", e.message)
 
@@ -166,9 +166,9 @@ end
 NotFoundError(message::AbstractString;
               table_name=nothing, record_id=nothing, namespace_name=nothing) =
     NotFoundError(String(message),
-                  table_name === nothing ? nothing : String(table_name),
-                  record_id === nothing ? nothing : String(record_id),
-                  namespace_name === nothing ? nothing : String(namespace_name))
+                  isnothing(table_name) ? nothing : String(table_name),
+                  isnothing(record_id) ? nothing : String(record_id),
+                  isnothing(namespace_name) ? nothing : String(namespace_name))
 
 Base.showerror(io::IO, e::NotFoundError) = print(io, "NotFoundError: ", e.message)
 
@@ -187,8 +187,8 @@ end
 AlreadyExistsError(message::AbstractString;
                    table_name=nothing, record_id=nothing) =
     AlreadyExistsError(String(message),
-                       table_name === nothing ? nothing : String(table_name),
-                       record_id === nothing ? nothing : String(record_id))
+                       isnothing(table_name) ? nothing : String(table_name),
+                       isnothing(record_id) ? nothing : String(record_id))
 
 Base.showerror(io::IO, e::AlreadyExistsError) = print(io, "AlreadyExistsError: ", e.message)
 
@@ -286,7 +286,7 @@ end
 
 function Base.showerror(io::IO, e::UnsupportedFeatureError)
     print(io, "UnsupportedFeatureError: feature `", e.feature, "` ")
-    e.transport === nothing ? print(io, "is not supported.") :
+    isnothing(e.transport) ? print(io, "is not supported.") :
         print(io, "is not supported on the `", e.transport, "` transport.")
 end
 
@@ -309,7 +309,7 @@ end
 function Base.showerror(io::IO, e::UnsupportedVersionError)
     print(io, "UnsupportedVersionError: server reports version `", e.server_version,
               "`, but this SDK requires >= ", e.minimum)
-    e.maximum !== nothing && print(io, " and < ", e.maximum)
+    !isnothing(e.maximum) && print(io, " and < ", e.maximum)
     print(io, ". Upgrade the server or pin the SDK to a compatible release.")
 end
 
@@ -373,7 +373,7 @@ _detail_kind(details) = (details isa AbstractDict) ? get(details, "kind", nothin
 _detail_str(details, key) = begin
     if details isa AbstractDict && haskey(details, key)
         v = details[key]
-        v === nothing ? nothing : String(v)
+        isnothing(v) ? nothing : String(v)
     else
         nothing
     end
@@ -381,7 +381,7 @@ end
 
 function _make_validation(message::String, details)::ValidationError
     pname = _detail_str(details, "parameter_name")
-    if pname === nothing
+    if isnothing(pname)
         pname = _detail_str(details, "parameterName")
     end
     is_parse = _detail_kind(details) == "Parse"
@@ -412,7 +412,7 @@ function _make_not_allowed(message::String, details)::NotAllowedError
     is_token_expired = false
     is_invalid_auth = false
     method_name = _detail_str(details, "method_name")
-    if method_name === nothing
+    if isnothing(method_name)
         method_name = _detail_str(details, "methodName")
     end
     if details isa AbstractDict && get(details, "kind", nothing) == "Auth"
@@ -429,15 +429,15 @@ end
 
 function _make_not_found(message::String, details)::NotFoundError
     table_name = _detail_str(details, "table_name")
-    if table_name === nothing
+    if isnothing(table_name)
         table_name = _detail_str(details, "tableName")
     end
     record_id = _detail_str(details, "record_id")
-    if record_id === nothing
+    if isnothing(record_id)
         record_id = _detail_str(details, "recordId")
     end
     namespace_name = _detail_str(details, "namespace_name")
-    if namespace_name === nothing
+    if isnothing(namespace_name)
         namespace_name = _detail_str(details, "namespaceName")
     end
     return NotFoundError(message;
@@ -448,11 +448,11 @@ end
 
 function _make_already_exists(message::String, details)::AlreadyExistsError
     table_name = _detail_str(details, "table_name")
-    if table_name === nothing
+    if isnothing(table_name)
         table_name = _detail_str(details, "tableName")
     end
     record_id = _detail_str(details, "record_id")
-    if record_id === nothing
+    if isnothing(record_id)
         record_id = _detail_str(details, "recordId")
     end
     return AlreadyExistsError(message; table_name=table_name, record_id=record_id)
@@ -509,7 +509,7 @@ function _parse_rpc_error(err::AbstractDict)
     details = get(err, "details", nothing)
 
     has_kind = kind_raw isa AbstractString && !isempty(kind_raw)
-    known_code = code !== nothing && haskey(_CODE_TO_KIND, code)
+    known_code = !isnothing(code) && haskey(_CODE_TO_KIND, code)
 
     if has_kind || known_code
         kind = _resolve_kind(kind_raw, code)
@@ -517,7 +517,7 @@ function _parse_rpc_error(err::AbstractDict)
     end
 
     # Fallback: legacy / transport-level. Preserve RPCError contract.
-    return RPCError(code === nothing ? -1 : code, message)
+    return RPCError(isnothing(code) ? -1 : code, message)
 end
 
 """

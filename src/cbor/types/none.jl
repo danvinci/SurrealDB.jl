@@ -21,7 +21,7 @@ end
 # Decode: Tag(6) payload must be CBOR null (decoded to Julia `nothing`).
 # Anything else is malformed.
 function _decode_none(payload)
-    payload === nothing || throw(CBORError(
+    isnothing(payload) || throw(CBORError(
         "TAG_NONE (6) payload must be null; got $(typeof(payload))"))
     return missing
 end

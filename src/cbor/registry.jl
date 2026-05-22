@@ -26,7 +26,7 @@ Called from `types/*.jl` at module-load time. Idempotent re-registration
 """
 function _register_tag!(tag::UInt64, decoder::Function)
     existing = get(_TAG_DECODERS, tag, nothing)
-    if existing === nothing
+    if isnothing(existing)
         _TAG_DECODERS[tag] = decoder
     elseif existing !== decoder
         throw(ArgumentError("CBOR tag $tag already has a different decoder registered"))

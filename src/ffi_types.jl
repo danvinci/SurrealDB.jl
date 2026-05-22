@@ -91,7 +91,7 @@ Convert a plain Julia value to the internal [`SurrealValue`](@ref) tagged union.
 | [`RecordID`](@ref)              | `SR_THING`       |
 """
 function julia_to_surreal_value(val::Any)::SurrealValue
-    if val === nothing
+    if isnothing(val)
         return SurrealValue(SR_NONE, nothing)
     elseif val === missing
         return SurrealValue(SR_NULL, nothing)

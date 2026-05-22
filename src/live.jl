@@ -73,7 +73,7 @@ function kill!(client::SurrealClient{C}, query_id::String) where {C<:AbstractCon
             pop!(client.connection.live_handles, query_id, nothing)
         end
     end
-    if sub !== nothing
+    if !isnothing(sub)
         sub.active = false
         try; close(sub.channel); catch; end
     end

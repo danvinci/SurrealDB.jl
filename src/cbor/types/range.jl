@@ -63,7 +63,7 @@ struct SurrealRange
 end
 
 function _validate_bound(b, name)
-    b === nothing || b isa BoundIncluded || b isa BoundExcluded || throw(ArgumentError(
+    isnothing(b) || b isa BoundIncluded || b isa BoundExcluded || throw(ArgumentError(
         "SurrealRange $name must be BoundIncluded, BoundExcluded, or nothing; got $(typeof(b))"))
 end
 
@@ -110,7 +110,7 @@ function _decode_range(payload)
 end
 
 function _check_bound_decoded(b, name)
-    b === nothing || b isa BoundIncluded || b isa BoundExcluded || throw(CBORError(
+    isnothing(b) || b isa BoundIncluded || b isa BoundExcluded || throw(CBORError(
         "TAG_RANGE (49) $name bound must be Tag(50), Tag(51), or null; got $(typeof(b))"))
 end
 

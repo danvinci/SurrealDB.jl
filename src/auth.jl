@@ -96,7 +96,7 @@ function authenticate!(client::SurrealClient{C}, token::String) where {C<:Abstra
     # reconnect replay) — otherwise the prior refresh belongs to a different
     # session and must be dropped.
     existing = client.tokens
-    refresh = (existing !== nothing && existing.access == token) ? existing.refresh : nothing
+    refresh = (!isnothing(existing) && existing.access == token) ? existing.refresh : nothing
     _apply_tokens!(client, token, refresh)
     return nothing
 end
@@ -135,7 +135,7 @@ end
 function _extract_refresh(result)
     result isa AbstractDict || return nothing
     v = get(result, "refresh", nothing)
-    v === nothing && return nothing
+    isnothing(v) && return nothing
     return v isa AbstractString ? String(v) : string(v)
 end
 
@@ -193,7 +193,7 @@ function _parse_jwt_exp(token::AbstractString)::Union{Int, Nothing}
     parts = split(String(token), '.')
     length(parts) >= 2 || return nothing
     payload_bytes = _b64url_decode(parts[2])
-    payload_bytes === nothing && return nothing
+    isnothing(payload_bytes) && return nothing
     payload = try
         JSON.parse(String(payload_bytes))
     catch
@@ -201,7 +201,7 @@ function _parse_jwt_exp(token::AbstractString)::Union{Int, Nothing}
     end
     payload isa AbstractDict || return nothing
     exp = get(payload, "exp", nothing)
-    exp === nothing && return nothing
+    isnothing(exp) && return nothing
     return exp isa Integer ? Int(exp) :
            exp isa Real ? Int(floor(exp)) :
            nothing
@@ -222,7 +222,7 @@ spend (Root/NS auth, scopes without `WITH REFRESH`, or after `invalidate!`).
 """
 function refresh!(client::SurrealClient{C}) where {C<:AbstractConnection}
     tks = client.tokens
-    if tks === nothing || tks.refresh === nothing
+    if isnothing(tks) || isnothing(tks.refresh)
         throw(NotAllowedError("No refresh token available; sign in with `WITH REFRESH` scope first."))
     end
     result = _rpc_call(client, "refresh", Any[tks.refresh])
@@ -230,7 +230,7 @@ function refresh!(client::SurrealClient{C}) where {C<:AbstractConnection}
     # Server may rotate the refresh token or keep the old one — fall back to
     # the existing refresh when the response omits a fresh one.
     new_refresh = _extract_refresh(result)
-    if new_refresh === nothing
+    if isnothing(new_refresh)
         new_refresh = tks.refresh
     end
     _apply_tokens!(client, new_access, new_refresh)
@@ -262,9 +262,9 @@ end
 function _schedule_refresh_timer!(conn::RemoteConnection, client::SurrealClient)
     _stop_refresh_timer!(conn)
     tks = client.tokens
-    (tks === nothing || tks.refresh === nothing) && return nothing
+    (isnothing(tks) || isnothing(tks.refresh)) && return nothing
     exp = _parse_jwt_exp(tks.access)
-    exp === nothing && return nothing
+    isnothing(exp) && return nothing
     now_s = time()
     delay = max(0.0, Float64(exp) - now_s - conn.refresh_lead_time)
     conn.refresh_timer = Timer(delay) do _
@@ -288,7 +288,7 @@ end
 
 function _stop_refresh_timer!(conn::RemoteConnection)
     t = conn.refresh_timer
-    if t !== nothing
+    if !isnothing(t)
         try; close(t); catch; end
     end
     conn.refresh_timer = nothing

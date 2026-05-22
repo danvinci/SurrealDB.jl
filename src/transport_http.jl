@@ -18,22 +18,22 @@ function _rpc_call_http(client::SurrealClient{<:RemoteHTTPConnection}, method::S
         # For HTTP, auto-prepend USE NS/DB since it is a stateless protocol
         ns = client.namespace
         db = client.database
-        ns_db_prefix = (ns !== nothing && db !== nothing) ? "USE NS $ns DB $db;\n" : ""
+        ns_db_prefix = (!isnothing(ns) && !isnothing(db)) ? "USE NS $ns DB $db;\n" : ""
 
         # Auto-convert CRUD methods to SurrealQL for HTTP (so USE NS/DB applies)
         effective_method, effective_params = _http_adapt_method(method, params, ns_db_prefix)
 
         msg = Dict("id" => rid, "method" => effective_method, "params" => effective_params)
-        if session !== nothing
+        if !isnothing(session)
             msg["session"] = string(session)
         end
-        if txn !== nothing
+        if !isnothing(txn)
             msg["txn"] = string(txn)
         end
         content_type = _wire_content_type(conn)
         headers = ["Content-Type" => content_type, "Accept" => content_type]
         tok = client.token
-        if tok !== nothing
+        if !isnothing(tok)
             push!(headers, "Authorization" => "Bearer $tok")
         end
     end
@@ -110,8 +110,8 @@ function _http_adapt_method(method::String, params::Vector{Any}, prefix::String)
         relation = _to_string(params[2])
         rel_out = _to_string(params[3])
         data = length(params) > 3 ? params[4] : nothing
-        data_json = data !== nothing ? " CONTENT \$data" : ""
-        extra_vars = data !== nothing ? Dict("data" => data) : Dict{String, Any}()
+        data_json = !isnothing(data) ? " CONTENT \$data" : ""
+        extra_vars = !isnothing(data) ? Dict("data" => data) : Dict{String, Any}()
         return "query", Any[prefix * "RELATE $rel_in->$relation->$rel_out$data_json", extra_vars]
     elseif method == "insert_relation"
         relation = _to_string(params[1])

@@ -133,7 +133,7 @@ end
 Tokens(access::AbstractString) = Tokens(String(access), nothing)
 
 function Base.show(io::IO, t::Tokens)
-    rf = t.refresh === nothing ? "-" : _truncate_token(t.refresh)
+    rf = isnothing(t.refresh) ? "-" : _truncate_token(t.refresh)
     print(io, "Tokens(access=", _truncate_token(t.access), ", refresh=", rf, ")")
 end
 
@@ -237,7 +237,7 @@ function LiveNotification(d::AbstractDict)
     )
 end
 
-_opt_string(x) = x === nothing ? nothing : string(x)
+_opt_string(x) = isnothing(x) ? nothing : string(x)
 
 # AbstractDict interface — backwards-compat dict access.
 const _LIVE_NOTIF_KEYS = ("action", "id", "record", "result", "session")
@@ -276,7 +276,7 @@ function Base.iterate(n::LiveNotification, state=1)
 end
 
 function Base.show(io::IO, n::LiveNotification)
-    rec = n.record === nothing ? "-" : n.record
+    rec = isnothing(n.record) ? "-" : n.record
     print(io, "LiveNotification(", n.action, " ", rec, ")")
 end
 

@@ -294,7 +294,7 @@ end
 # requires recursive sr_value_t allocations; add when a real call site needs
 # it).
 function _julia_to_sr_value(val)::Ptr{Cvoid}
-    if val === nothing
+    if isnothing(val)
         return ccall(_sym("sr_value_none"), Ptr{Cvoid}, ())
     elseif val === missing
         return ccall(_sym("sr_value_null"), Ptr{Cvoid}, ())

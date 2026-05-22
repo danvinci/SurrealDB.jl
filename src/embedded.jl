@@ -208,9 +208,9 @@ function SurrealDB._embedded_rpc_call(conn::EmbeddedConnection, method::String, 
     elseif method == "signin"
         p = params[1]
         if p isa AbstractDict
-            scope = get(p, "AC", nothing) !== nothing ? :RECORD :
-                    get(p, "DB", nothing) !== nothing ? :DATABASE :
-                    get(p, "NS", nothing) !== nothing ? :NAMESPACE : :ROOT
+            scope = !isnothing(get(p, "AC", nothing)) ? :RECORD :
+                    !isnothing(get(p, "DB", nothing)) ? :DATABASE :
+                    !isnothing(get(p, "NS", nothing)) ? :NAMESPACE : :ROOT
             return LibSurreal.sr_signin(conn.handle, scope,
                 string(get(p, "user", "")), string(get(p, "pass", "")),
                 string(get(p, "NS", "")), string(get(p, "DB", "")),
@@ -251,13 +251,13 @@ end
 
 function SurrealDB._poll_embedded_live(conn::EmbeddedConnection, query_id::String, ch::Channel)
     stream = get(conn.live_streams, query_id, nothing)
-    if stream === nothing
+    if isnothing(stream)
         return
     end
     try
         while isopen(ch)
             raw = LibSurreal.sr_stream_next(stream)
-            raw === nothing && break
+            isnothing(raw) && break
             get(raw, "action", "") == "KILLED" && continue
             ln = SurrealDB.LiveNotification(
                 string(get(raw, "action", "")),
@@ -282,7 +282,7 @@ function SurrealDB._poll_embedded_live(conn::EmbeddedConnection, query_id::Strin
         sub = lock(conn.lock) do
             get(conn.live_handles, query_id, nothing)
         end
-        if sub !== nothing
+        if !isnothing(sub)
             sub.active = false
         end
     end

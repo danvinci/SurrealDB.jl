@@ -88,7 +88,7 @@ LifecycleEvent(status::ConnectionStatus;
 function Base.show(io::IO, ev::LifecycleEvent)
     print(io, "LifecycleEvent(", ev.status, ", attempt=", ev.attempt,
               ", cause=")
-    if ev.cause === nothing
+    if isnothing(ev.cause)
         print(io, "nothing")
     else
         # `repr` keeps the cause on one line (no stack trace) and quotes
@@ -251,9 +251,9 @@ mutable struct SurrealClient{C<:AbstractConnection}
 end
 
 function Base.show(io::IO, c::SurrealClient)
-    auth = c.token === nothing ? "unauth" : "auth"
-    ns = c.namespace === nothing ? "-" : c.namespace
-    db = c.database === nothing ? "-" : c.database
+    auth = isnothing(c.token) ? "unauth" : "auth"
+    ns = isnothing(c.namespace) ? "-" : c.namespace
+    db = isnothing(c.database) ? "-" : c.database
     print(io, "SurrealClient(", _conn_descr(c.connection),
               ", ns=", ns, ", db=", db, ", ", auth, ")")
 end
@@ -274,10 +274,10 @@ end
 
 function _parse_scheme(url::String)
     m = match(r"^(mem(?:ory)?|surrealkv|ws|wss|http|https)://", url)
-    if m === nothing
+    if isnothing(m)
         # Extract the scheme prefix (or report the whole URL if there isn't one)
         scheme = match(r"^([a-zA-Z][a-zA-Z0-9+.-]*)://", url)
-        bad = scheme === nothing ? url : String(something(scheme.captures[1], url))
+        bad = isnothing(scheme) ? url : String(something(scheme.captures[1], url))
         throw(UnsupportedEngineError(bad))
     end
     scheme = m.captures[1]
@@ -375,7 +375,7 @@ function _close_remote!(conn::RemoteConnection)
     end
     _stop_pinger!(conn)
     # Close WS before signalling writer — otherwise reader blocks on receive(ws) until server timeout.
-    if conn.ws !== nothing
+    if !isnothing(conn.ws)
         try; HTTP.WebSockets.close(conn.ws); catch; end
     end
     # Shutdown sentinel: empty payload of the channel's element type. The
@@ -397,7 +397,7 @@ function _close_remote!(conn::RemoteConnection)
     # Wait for reconnect loop to unwind — rapid connect/close/connect cycles
     # accumulate dangling reader tasks otherwise. 2s cap prevents permanent hang.
     rt = conn.reader_task
-    if rt !== nothing && !istaskdone(rt)
+    if !isnothing(rt) && !istaskdone(rt)
         deadline = time() + 2.0
         while !istaskdone(rt) && time() < deadline
             sleep(0.02)
@@ -565,7 +565,7 @@ function connect(url::String;
             end
             if conn.status != STATUS_CONNECTED
                 cause = conn.last_error
-                msg = cause === nothing ?
+                msg = isnothing(cause) ?
                     "Failed to connect to $ws_url" :
                     "Failed to connect to $ws_url: $(sprint(showerror, cause))"
                 throw(ConnectionError(msg, cause))
@@ -586,13 +586,13 @@ function connect(url::String;
             end
         end
 
-        if auth !== nothing
+        if !isnothing(auth)
             signin!(client, auth)
         end
-        if token !== nothing
+        if !isnothing(token)
             authenticate!(client, token)
         end
-        if ns !== nothing && db !== nothing
+        if !isnothing(ns) && !isnothing(db)
             use!(client, ns, db)
         end
 
@@ -601,7 +601,7 @@ function connect(url::String;
         conn = embedded_connect(url)
         client = SurrealClient(conn, nothing, nothing, nothing, nothing, Dict{String, Any}())
 
-        if ns !== nothing && db !== nothing
+        if !isnothing(ns) && !isnothing(db)
             use!(client, ns, db)
         end
 
@@ -637,7 +637,7 @@ const MAXIMUM_SERVER_VERSION = "4.0.0"
 # Returns nothing if no semver shape is present.
 function _parse_server_semver(raw::AbstractString)
     m = match(r"(\d+)\.(\d+)\.(\d+)", raw)
-    m === nothing && return nothing
+    isnothing(m) && return nothing
     return VersionNumber(parse(Int, m.captures[1]),
                          parse(Int, m.captures[2]),
                          parse(Int, m.captures[3]))

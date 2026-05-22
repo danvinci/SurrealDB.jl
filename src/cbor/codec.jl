@@ -216,7 +216,7 @@ function decode(io::IO)
     elseif major == MAJOR_TAG
         payload = decode(io)
         handler = _lookup_tag(arg)
-        return handler === nothing ? Tagged(arg, payload) : handler(payload)
+        return isnothing(handler) ? Tagged(arg, payload) : handler(payload)
     elseif major == MAJOR_SIMPLE
         return _decode_simple(ai, arg)
     end

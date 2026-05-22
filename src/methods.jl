@@ -402,7 +402,7 @@ See also: [`insert_relation`](@ref), [`Relationship`](@ref).
 """
 function relate(client::SurrealClient{C}, from, edge, to;
                 data=nothing) where {C<:AbstractConnection}
-    payload = data === nothing ? Dict{String, Any}() : data
+    payload = isnothing(data) ? Dict{String, Any}() : data
     return _rpc_call(client, "relate", Any[from, edge, to, payload])
 end
 
@@ -531,7 +531,7 @@ end
 function _extract_query_results(results::Vector{_QueryResult})::Vector{Any}
     out = Any[]
     for qr in results
-        if qr.error !== nothing
+        if !isnothing(qr.error)
             throw(qr.error)
         end
         push!(out, qr.result)
@@ -624,7 +624,7 @@ function _normalize_for_construct(::Type{T}, dict) where {T}
     for (k, v) in dict
         ks = string(k)
         target_type = get(field_types, ks, nothing)
-        if target_type !== nothing
+        if !isnothing(target_type)
             normalized[ks] = _coerce_value(v, target_type)
         else
             normalized[ks] = v

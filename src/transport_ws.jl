@@ -53,7 +53,7 @@ function _ws_reconnect_loop(conn::RemoteWSConnection)
                 # Channel element type matches the wire payload (String for
                 # JSON, Vector{UInt8} for CBOR) so the writer's send picks the
                 # right WS frame type without runtime branching.
-                if conn.write_channel === nothing || !isopen(conn.write_channel)
+                if isnothing(conn.write_channel) || !isopen(conn.write_channel)
                     conn.write_channel = _new_write_channel(conn)
                 else
                     try; close(conn.write_channel); catch; end
@@ -103,12 +103,12 @@ end
 
 function _reconnect_apply_state!(conn::RemoteWSConnection)
     client = conn.client
-    if client === nothing
+    if isnothing(client)
         return
     end
 
     # Re-select namespace/database if previously set
-    if client.namespace !== nothing && client.database !== nothing
+    if !isnothing(client.namespace) && !isnothing(client.database)
         try
             _use_remote!(conn, client.namespace, client.database)
         catch
@@ -116,7 +116,7 @@ function _reconnect_apply_state!(conn::RemoteWSConnection)
     end
 
     # Re-authenticate if token exists
-    if client.token !== nothing
+    if !isnothing(client.token)
         try
             _authenticate_remote!(conn, client.token)
         catch
@@ -128,7 +128,7 @@ function _reconnect_apply_state!(conn::RemoteWSConnection)
     # refresh! immediately (scheduling a 0-delay timer); the next RPC will
     # otherwise hit a NotAllowed from the server. If the refresh itself
     # fails the timer callback clears tokens and emits a warning.
-    if client.tokens !== nothing && client.tokens.refresh !== nothing
+    if !isnothing(client.tokens) && !isnothing(client.tokens.refresh)
         _schedule_refresh_timer!(conn, client)
     end
 
@@ -158,7 +158,7 @@ function _reconnect_apply_state!(conn::RemoteWSConnection)
 
     for (old_qid, (table, diff)) in old_subs
         ch = get(old_channels, old_qid, nothing)
-        if ch !== nothing && isopen(ch)
+        if !isnothing(ch) && isopen(ch)
             try
                 result = _rpc_call(client, "live", Any[table, diff])
                 new_qid = result isa String ? result : string(result)
@@ -167,7 +167,7 @@ function _reconnect_apply_state!(conn::RemoteWSConnection)
                     conn.live_subscriptions[new_qid] = (table, diff)
                     conn.notification_channels[new_qid] = ch
                     # Re-key handle so kill!(sub) targets the new server-side query_id.
-                    if sub !== nothing
+                    if !isnothing(sub)
                         sub.query_id = new_qid
                         conn.live_handles[new_qid] = sub
                     end
@@ -176,7 +176,7 @@ function _reconnect_apply_state!(conn::RemoteWSConnection)
                 # Re-subscription failed, close the old channel and mark sub dead
                 try; close(ch); catch; end
                 sub = get(old_handles, old_qid, nothing)
-                if sub !== nothing
+                if !isnothing(sub)
                     sub.active = false
                 end
             end
@@ -186,7 +186,7 @@ end
 
 function _ws_writer_task(conn::RemoteWSConnection)
     # Gate on socket, not status — writes during state replay must go out.
-    while conn.ws !== nothing && !HTTP.WebSockets.isclosed(conn.ws)
+    while !isnothing(conn.ws) && !HTTP.WebSockets.isclosed(conn.ws)
         msg = try
             take!(conn.write_channel)
         catch e
@@ -197,7 +197,7 @@ function _ws_writer_task(conn::RemoteWSConnection)
         # `""` or `UInt8[]` (matching the channel's element type) to wake the
         # writer; either way an empty payload means exit.
         isempty(msg) && break
-        if conn.ws !== nothing && !HTTP.WebSockets.isclosed(conn.ws)
+        if !isnothing(conn.ws) && !HTTP.WebSockets.isclosed(conn.ws)
             try
                 HTTP.WebSockets.send(conn.ws, msg)
             catch e
@@ -212,7 +212,7 @@ function _ws_writer_task(conn::RemoteWSConnection)
 end
 
 function _ws_reader_task(conn::RemoteWSConnection)
-    while conn.ws !== nothing && !HTTP.WebSockets.isclosed(conn.ws)
+    while !isnothing(conn.ws) && !HTTP.WebSockets.isclosed(conn.ws)
         raw = try
             HTTP.WebSockets.receive(conn.ws)
         catch e
@@ -234,12 +234,12 @@ function _ws_reader_task(conn::RemoteWSConnection)
             continue
         end
 
-        if haskey(msg, "id") && msg["id"] !== nothing
+        if haskey(msg, "id") && !isnothing(msg["id"])
             rid = msg["id"]
             @debug "SurrealDB ws RPC ←" rid=rid has_error=haskey(msg, "error")
             lock(conn.lock) do
                 ch = get(conn.response_channels, rid, nothing)
-                if ch !== nothing && isopen(ch)
+                if !isnothing(ch) && isopen(ch)
                     put!(ch, msg)
                 end
             end
@@ -332,12 +332,12 @@ function _start_pinger!(conn::RemoteWSConnection)
                 end
                 conn.status == STATUS_CONNECTED || break
                 try
-                    if client !== nothing
+                    if !isnothing(client)
                         _rpc_call(client, "ping", Any[])
                     end
                 catch
                     # Ping failed — close socket to trigger reconnection
-                    if conn.ws !== nothing
+                    if !isnothing(conn.ws)
                         try; HTTP.WebSockets.close(conn.ws); catch; end
                     end
                     break
@@ -352,11 +352,11 @@ end
 
 function _stop_pinger!(conn::RemoteWSConnection)
     timer = conn.pinger_timer
-    if timer !== nothing
+    if !isnothing(timer)
         try; close(timer); catch; end
     end
     task = conn.pinger_task
-    if task !== nothing && !istaskdone(task)
+    if !isnothing(task) && !istaskdone(task)
         try
             t_end = time() + 1.0  # 1s cap; normally exits in microseconds
             while !istaskdone(task) && time() < t_end
@@ -387,7 +387,7 @@ function _deliver_to_subscriber!(conn::RemoteWSConnection, qid::String, payload)
     ch = lock(conn.live_lock) do
         get(conn.notification_channels, qid, nothing)
     end
-    if ch !== nothing && isopen(ch)
+    if !isnothing(ch) && isopen(ch)
         try
             put!(ch, payload)
         catch e
@@ -399,7 +399,7 @@ end
 
 function _dispatch_live_notification(conn::RemoteWSConnection, result::AbstractDict)
     query_id = get(result, "id", nothing)
-    query_id === nothing && return nothing
+    isnothing(query_id) && return nothing
     qid = string(query_id)
     action = get(result, "action", "")
 
@@ -413,11 +413,11 @@ function _dispatch_live_notification(conn::RemoteWSConnection, result::AbstractD
         ch, sub = lock(conn.live_lock) do
             c = get(conn.notification_channels, qid, nothing)
             s = pop!(conn.live_handles, qid, nothing)
-            c === nothing || delete!(conn.notification_channels, qid)
+            isnothing(c) || delete!(conn.notification_channels, qid)
             delete!(conn.live_subscriptions, qid)
             (c, s)
         end
-        ch === nothing && return nothing  # client-initiated; already torn down
+        isnothing(ch) && return nothing  # client-initiated; already torn down
         # Server-initiated: notify subscriber, then close channel so any
         # `for n in sub.channel` loop terminates.
         if isopen(ch)
@@ -426,7 +426,7 @@ function _dispatch_live_notification(conn::RemoteWSConnection, result::AbstractD
             end
             try; close(ch); catch; end
         end
-        sub !== nothing && (sub.active = false)
+        !isnothing(sub) && (sub.active = false)
         return nothing
     end
 
@@ -437,7 +437,7 @@ end
 function _dispatch_notification(conn::RemoteWSConnection, notif)
     params = get(notif, "params", Dict{String, Any}())
     query_id = params isa Dict ? get(params, "id", nothing) : nothing
-    if query_id === nothing
+    if isnothing(query_id)
         @warn "SurrealDB ws legacy notification dropped (no id)" notif
         return
     end
@@ -462,7 +462,7 @@ function _rpc_call_ws(client::SurrealClient{<:RemoteWSConnection}, method::Strin
         lock(conn.lock) do
             conn.request_id += 1
             rid = conn.request_id
-            if conn.write_channel !== nothing && isopen(conn.write_channel)
+            if !isnothing(conn.write_channel) && isopen(conn.write_channel)
                 conn.response_channels[rid] = ch
                 registered = true
             end
@@ -477,10 +477,10 @@ function _rpc_call_ws(client::SurrealClient{<:RemoteWSConnection}, method::Strin
         end
 
         msg = Dict{String, Any}("id" => rid, "method" => method, "params" => params)
-        if session !== nothing
+        if !isnothing(session)
             msg["session"] = string(session)
         end
-        if txn !== nothing
+        if !isnothing(txn)
             msg["txn"] = string(txn)
         end
         payload = _wire_encode(conn, msg)
@@ -539,7 +539,7 @@ function _rpc_call_ws(client::SurrealClient{<:RemoteWSConnection}, method::Strin
                 close(watchdog)
             end
         end
-        if response === nothing
+        if isnothing(response)
             if retry_after
                 continue
             end
