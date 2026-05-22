@@ -17,7 +17,8 @@ export SurrealClient
 export connect, close!, status, events
 export signin!, signup!, authenticate!, invalidate!, refresh!, tokens, Tokens
 export use!, info, version, health, ping
-export query, query_table, query_one, create, select, update, delete, insert, upsert, merge
+export query, query_verbose, query_table, query_one, create, select, update, delete, insert, upsert, merge
+export QueryStatement, isok, iserr
 export relate, insert_relation
 export patch, patch_add, patch_remove, patch_replace
 export run

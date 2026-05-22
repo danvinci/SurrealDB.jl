@@ -12,6 +12,62 @@ struct _QueryResult
 end
 
 """
+    QueryStatement
+
+Per-statement metadata returned by [`query_verbose`](@ref). Exposes the
+server-reported status, execution time, result value, and any typed error
+without discarding statements that errored.
+
+Fields:
+- `status::Symbol` — `:ok` or `:err`
+- `time::String` — server-reported execution time, e.g. `"1.2ms"`
+- `result::Any` — the parsed result value; `nothing` on `:err`
+- `error::Union{ServerError, Nothing}` — typed error; `nothing` on `:ok`
+
+Use [`isok`](@ref) / [`iserr`](@ref) to discriminate:
+```julia
+stmts = SurrealDB.query_verbose(db, "SELECT * FROM a; BAD QUERY; SELECT * FROM b")
+filter(isok, stmts)   # statements that succeeded
+filter(iserr, stmts)  # statements that failed
+```
+"""
+struct QueryStatement
+    status::Symbol
+    time::String
+    result::Any
+    error::Union{ServerError, Nothing}
+end
+
+"""
+    isok(s::QueryStatement) -> Bool
+
+Return `true` when the statement completed without error.
+"""
+isok(s::QueryStatement) = s.status === :ok
+
+"""
+    iserr(s::QueryStatement) -> Bool
+
+Return `true` when the statement produced a server error.
+"""
+iserr(s::QueryStatement) = s.status === :err
+
+function Base.show(io::IO, s::QueryStatement)
+    if isok(s)
+        result_summary = if s.result isa AbstractVector
+            "rows=$(length(s.result))"
+        elseif isnothing(s.result)
+            "result=nothing"
+        else
+            "result=$(repr(s.result))"
+        end
+        print(io, "QueryStatement(:ok, time=\"", s.time, "\", ", result_summary, ")")
+    else
+        print(io, "QueryStatement(:err, time=\"", s.time, "\", error=", s.error, ")")
+    end
+end
+
+"""
     query(client, sql::String; vars=Dict{String, Any}())
 
 Execute a raw SurrealQL query with optional parameterized variables.
@@ -60,6 +116,68 @@ function query(client::SurrealClient{C}, ::Type{T}, sql::String;
     parsed = _parse_query_results(raw)
     results = _extract_query_results(parsed)
     return _results_to_struct(T, results)
+end
+
+"""
+    query_verbose(client, sql::String, vars=Dict{String,Any}()) -> Vector{QueryStatement}
+
+Execute a SurrealQL query and return per-statement metadata, including status,
+execution time, result, and any typed error — one [`QueryStatement`](@ref) per
+server-reported statement in order.
+
+Unlike [`query`](@ref), `query_verbose` **never throws on statement errors**.
+Each statement's outcome is captured in the returned `QueryStatement`. Transport-
+level failures (network errors, `ConnectionError`, etc.) still propagate as
+exceptions.
+
+Use cases:
+- **Multi-statement transactions** — inspect which statements succeeded or
+  failed before deciding to retry.
+- **Batch ETL with partial failure** — continue processing successful statements
+  while logging errors.
+- **Per-statement performance profiling** — read the `time` field from each
+  `QueryStatement` to identify slow statements.
+- **Observability pipelines** — emit structured per-statement metrics without
+  losing the result data.
+
+# Examples
+```julia
+# Partial failure: second INSERT has a duplicate id
+stmts = SurrealDB.query_verbose(db, \"""
+    INSERT INTO user { id: user:1, name: "Alice" };
+    INSERT INTO user { id: user:1, name: "Duplicate" };
+    SELECT * FROM user;
+\""")
+
+# stmts[1] → QueryStatement(:ok, ..., rows=1)
+# stmts[2] → QueryStatement(:err, ..., error=AlreadyExistsError(...))
+# stmts[3] → QueryStatement(:ok, ..., rows=1)
+
+successes = filter(isok, stmts)
+failures  = filter(iserr, stmts)
+times_ms  = [s.time for s in stmts]
+```
+
+For simple queries where you want the result or an exception, use [`query`](@ref).
+
+See also: [`QueryStatement`](@ref), [`isok`](@ref), [`iserr`](@ref), [`query`](@ref).
+"""
+function query_verbose(client::SurrealClient{C}, sql::String,
+                       vars=Dict{String,Any}()) where {C<:AbstractConnection}
+    raw = _rpc_call(client, "query", Any[sql, vars])
+    return _to_query_statements(_parse_query_results(raw))
+end
+
+function _to_query_statements(results::Vector{_QueryResult})::Vector{QueryStatement}
+    QueryStatement[
+        QueryStatement(
+            qr.status == "OK" ? :ok : :err,
+            qr.time,
+            qr.result,
+            qr.error,
+        )
+        for qr in results
+    ]
 end
 
 """

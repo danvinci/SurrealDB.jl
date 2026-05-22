@@ -41,7 +41,8 @@ const EXPECTED_EXPORTS = Set([
     :use!, :info, :version, :health, :ping,
 
     # Query / CRUD
-    :query, :query_table, :query_one,
+    :query, :query_verbose, :query_table, :query_one,
+    :QueryStatement, :isok, :iserr,
     :create, :select, :update, :delete, :insert, :upsert, :merge,
     :relate, :insert_relation,
     :patch, :patch_add, :patch_remove, :patch_replace,
