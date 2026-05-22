@@ -32,7 +32,7 @@ export to_table, to_metagraph
 
 # --- Types ---
 export ConnectionStatus, STATUS_DISCONNECTED, STATUS_CONNECTING, STATUS_CONNECTED, STATUS_RECONNECTING
-export LifecycleEvent
+export LifecycleEvent, AbstractSurrealLogger, NullLogger, FnLogger
 export RecordID, Table, SurrealValue
 export RootAuth, NamespaceAuth, ScopedAuth, JwtAuth
 export Relationship, LiveSubscription, LiveNotification

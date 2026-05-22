@@ -98,6 +98,44 @@ function Base.show(io::IO, ev::LifecycleEvent)
     print(io, ")")
 end
 
+# --- Logger interface (optional plumb-through) ---
+
+"""
+    AbstractSurrealLogger
+
+Supertype for observability hooks invoked synchronously on each
+[`LifecycleEvent`](@ref) emission. Pass via `connect(...; logger=...)`.
+Concrete implementations: [`NullLogger`](@ref) (default, no-op),
+[`FnLogger`](@ref) (forwards to a user function).
+
+The logger callback runs on the calling task (the reconnect loop or the
+connect entry path). Long-running loggers should hand off to their own
+task; the emit path catches exceptions and warns instead of propagating.
+"""
+abstract type AbstractSurrealLogger end
+
+"""
+    NullLogger()
+
+Default no-op `AbstractSurrealLogger`. Drops every event.
+"""
+struct NullLogger <: AbstractSurrealLogger end
+
+(::NullLogger)(::LifecycleEvent) = nothing
+
+"""
+    FnLogger(fn)
+
+Forwards each [`LifecycleEvent`](@ref) to a user-supplied function
+`fn(event::LifecycleEvent) -> nothing`. Invoked synchronously on the
+calling task — see [`AbstractSurrealLogger`](@ref).
+"""
+struct FnLogger <: AbstractSurrealLogger
+    fn::Function
+end
+
+(l::FnLogger)(ev::LifecycleEvent) = l.fn(ev)
+
 
 """
     RemoteConnection(url)
@@ -167,6 +205,8 @@ Base.@kwdef mutable struct RemoteConnection{P, W} <: AbstractRemoteConnection
     refresh_timer::Union{Timer, Nothing} = nothing
     "How many seconds before the access token's `exp` claim to fire the proactive refresh. Default 30s — wide enough to absorb RTT and clock skew, narrow enough that revocations surface quickly."
     refresh_lead_time::Float64 = 30.0
+    "Optional structured logger invoked synchronously on every lifecycle event. Default [`NullLogger`](@ref) (no-op). Pass [`FnLogger`](@ref) to forward to a user callback; long-running loggers should hand off to their own task."
+    logger::AbstractSurrealLogger = NullLogger()
 end
 
 const RemoteWSConnection = RemoteConnection{:ws}
@@ -293,6 +333,14 @@ function _emit_lifecycle!(conn::RemoteConnection, status::ConnectionStatus;
         isopen(conn.events) && put!(conn.events, ev)
     catch e
         e isa InvalidStateException || rethrow()
+    end
+    # Logger fires SYNCHRONOUSLY on the calling task. Wrap in try/catch so a
+    # misbehaving user callback can't crash the reconnect loop or the connect
+    # entry path; surface failures as @warn instead.
+    try
+        conn.logger(ev)
+    catch e
+        @warn "SurrealDB lifecycle logger threw" exception=e event=ev
     end
     return nothing
 end
@@ -426,6 +474,7 @@ Keyword arguments:
 - `refresh_lead_time::Float64=30.0`: How far before the access token's `exp` claim to fire the proactive refresh. Only active when the server issued a refresh token (`WITH REFRESH` scopes); otherwise no timer is scheduled.
 - `wire::Symbol=:cbor`: Wire format — `:cbor` (default, binary, type-faithful) or `:json` (text, legacy/debug). Selected at connect time; baked into the connection's type parameter for compile-time codec dispatch. Embedded connections ignore this parameter.
 - `check_version::Bool=true`: After the socket comes up, probe `version()` and throw [`UnsupportedVersionError`](@ref) if the server is below [`MINIMUM_SERVER_VERSION`](@ref). Set `false` for development against unreleased server builds.
+- `logger::AbstractSurrealLogger=NullLogger()`: Synchronous observability hook for lifecycle events. Pass [`FnLogger`](@ref) to forward to a user callback. Runs on the emitting task — long-running loggers should hand off to their own task.
 
 Returns a `SurrealClient{C}` where `C` is the concrete connection backend type.
 
@@ -461,7 +510,8 @@ function connect(url::String;
                  rpc_timeout::Float64=30.0,
                  refresh_lead_time::Float64=30.0,
                  wire::Symbol=:cbor,
-                 check_version::Bool=true)
+                 check_version::Bool=true,
+                 logger::AbstractSurrealLogger=NullLogger())
     scheme = _parse_scheme(url)
     wire in (:json, :cbor) || throw(ArgumentError("Unsupported wire format: $wire (expected :json or :cbor)"))
 
@@ -490,7 +540,8 @@ function connect(url::String;
                                  ping_interval=ping_interval,
                                  tls_verify=tls_verify,
                                  rpc_timeout=rpc_timeout,
-                                 refresh_lead_time=refresh_lead_time) :
+                                 refresh_lead_time=refresh_lead_time,
+                                 logger=logger) :
             RemoteConnection{:ws, wire}(url=ws_url,
                                http_base_url=http_base,
                                response_channels=Dict{Int, Channel}(),
@@ -504,7 +555,8 @@ function connect(url::String;
                                ping_interval=ping_interval,
                                tls_verify=tls_verify,
                                rpc_timeout=rpc_timeout,
-                               refresh_lead_time=refresh_lead_time)
+                               refresh_lead_time=refresh_lead_time,
+                               logger=logger)
         _connect_remote!(conn)
         if is_ws
             for _ in 1:50

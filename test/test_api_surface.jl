@@ -21,7 +21,7 @@ const EXPECTED_EXPORTS = Set([
     :STATUS_DISCONNECTED, :STATUS_CONNECTING, :STATUS_CONNECTED, :STATUS_RECONNECTING,
 
     # Lifecycle observability
-    :LifecycleEvent,
+    :LifecycleEvent, :AbstractSurrealLogger, :NullLogger, :FnLogger,
 
     # Core types
     :AbstractConnection, :RemoteConnection, :EmbeddedConnection,
