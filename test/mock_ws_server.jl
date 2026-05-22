@@ -13,6 +13,7 @@
 module MockWS
 
 using HTTP, Sockets, JSON, UUIDs
+using SurrealDB.SurrealCBOR: encode as cbor_encode, decode as cbor_decode
 
 mutable struct Mock
     port::Int
@@ -97,13 +98,19 @@ function _serve_loop(mock::Mock)
             end
 
             if HTTP.WebSockets.isupgrade(http.message)
+                # Echo back the client's subprotocol offer so the upgrade
+                # handshake validates. SDK sends exactly one of `json` /
+                # `cbor`; default to `json` if the header is absent (older
+                # clients / direct fixtures).
+                proto = HTTP.header(http.message, "Sec-WebSocket-Protocol", "json")
+                HTTP.setheader(http, "Sec-WebSocket-Protocol" => proto)
                 HTTP.WebSockets.upgrade(http) do ws
                     lock(mock.lock) do
                         mock.upgrade_count += 1
                         mock.active_ws = ws
                     end
                     try
-                        _handle_connection(mock, ws)
+                        _handle_connection(mock, ws, proto)
                     finally
                         lock(mock.lock) do
                             mock.active_ws = nothing
@@ -117,7 +124,7 @@ function _serve_loop(mock::Mock)
     end
 end
 
-function _handle_connection(mock::Mock, ws)
+function _handle_connection(mock::Mock, ws, proto::AbstractString)
     msg_count = 0
     while !HTTP.WebSockets.isclosed(ws)
         data = try
@@ -130,9 +137,8 @@ function _handle_connection(mock::Mock, ws)
         isempty(data) && continue
 
         msg_count += 1
-        raw = data isa String ? data : String(data)
         req = try
-            JSON.parse(raw)
+            _decode_frame(data, proto)
         catch
             break
         end
@@ -143,7 +149,7 @@ function _handle_connection(mock::Mock, ws)
             push!(mock.methods_seen, get(req, "method", "?"))
         end
 
-        _reply(mock, ws, req)
+        _reply(mock, ws, req, proto)
 
         # Drop-after-N: close after the Nth message handled.
         if mock.drop_after_n > 0 && msg_count >= mock.drop_after_n
@@ -153,7 +159,23 @@ function _handle_connection(mock::Mock, ws)
     end
 end
 
-function _reply(mock::Mock, ws, req::AbstractDict)
+# Wire-aware codec dispatched on the negotiated subprotocol. JSON path
+# matches the original mock behavior; CBOR delegates to SurrealCBOR.
+function _decode_frame(data, proto::AbstractString)
+    if proto == "cbor"
+        bytes = data isa AbstractVector{UInt8} ? data : Vector{UInt8}(codeunits(data))
+        return cbor_decode(bytes)
+    else
+        raw = data isa String ? data : String(data)
+        return JSON.parse(raw)
+    end
+end
+
+function _encode_frame(msg, proto::AbstractString)
+    return proto == "cbor" ? cbor_encode(msg) : JSON.json(msg)
+end
+
+function _reply(mock::Mock, ws, req::AbstractDict, proto::AbstractString)
     method = get(req, "method", "")
     id = get(req, "id", "")
     result = if method == "signin" || method == "authenticate"
@@ -179,9 +201,9 @@ function _reply(mock::Mock, ws, req::AbstractDict)
         nothing
     end
 
-    response = JSON.json(Dict("id" => id, "result" => result))
+    payload = _encode_frame(Dict("id" => id, "result" => result), proto)
     try
-        HTTP.WebSockets.send(ws, response)
+        HTTP.WebSockets.send(ws, payload)
     catch
         # Socket closed mid-reply — handler loop will see isclosed and exit.
     end

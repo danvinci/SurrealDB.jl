@@ -81,6 +81,9 @@ end
     _section("Fuzz") do
         @testset "Fuzz" begin include("test_fuzz.jl") end
     end
+    _section("Wire codec dispatch") do
+        @testset "Wire codec dispatch" begin include("test_wire.jl") end
+    end
     _section("Reconnect") do
         @testset "Reconnect" begin include("test_reconnect.jl") end
     end
