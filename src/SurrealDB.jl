@@ -32,6 +32,7 @@ export to_table, to_metagraph
 
 # --- Types ---
 export ConnectionStatus, STATUS_DISCONNECTED, STATUS_CONNECTING, STATUS_CONNECTED, STATUS_RECONNECTING
+export LifecycleEvent
 export RecordID, Table, SurrealValue
 export RootAuth, NamespaceAuth, ScopedAuth, JwtAuth
 export Relationship, LiveSubscription, LiveNotification
@@ -90,6 +91,7 @@ using ..SurrealDB:
     SR_STRING, SR_DATETIME, SR_DURATION, SR_UUID, SR_ARRAY,
     SR_OBJECT, SR_BYTES, SR_THING, SR_GEOMETRY,
     ConnectionError, EmbeddedFFIError,
+    LifecycleEvent,
     # Stub functions defined in connection.jl/live.jl whose methods are
     # added below for EmbeddedConnection. Importing the names into Embedded
     # lets internal Embedded code (e.g. `_connect_embedded!(conn, url)` from

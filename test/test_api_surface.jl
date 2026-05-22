@@ -20,6 +20,9 @@ const EXPECTED_EXPORTS = Set([
     :ConnectionStatus,
     :STATUS_DISCONNECTED, :STATUS_CONNECTING, :STATUS_CONNECTED, :STATUS_RECONNECTING,
 
+    # Lifecycle observability
+    :LifecycleEvent,
+
     # Core types
     :AbstractConnection, :RemoteConnection, :EmbeddedConnection,
     :SurrealClient, :SurrealSession,

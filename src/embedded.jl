@@ -28,15 +28,18 @@ Base.@kwdef mutable struct EmbeddedConnection <: AbstractConnection
     "live query_id → LiveSubscription handle — used by `kill!(client, qid)` to flip caller-held state"
     live_handles::Dict{String, LiveSubscription} = Dict{String, LiveSubscription}()
     "Lifecycle-event Channel (mirrors `RemoteConnection.events`). Embedded fires `STATUS_CONNECTED` once on successful connect and `STATUS_DISCONNECTED` once on close; no `STATUS_RECONNECTING` because there's no retry loop."
-    events::Channel{SurrealDB.ConnectionStatus} = Channel{SurrealDB.ConnectionStatus}(8)
+    events::Channel{SurrealDB.LifecycleEvent} = Channel{SurrealDB.LifecycleEvent}(8)
 end
 
 function Base.show(io::IO, conn::EmbeddedConnection)
     print(io, "EmbeddedConnection(", conn.path, ", ", conn.status, ")")
 end
 
-# Best-effort emit; never blocks the caller. Mirrors `_set_status!` for remote.
-function _emit_embedded_event!(conn::EmbeddedConnection, ev::SurrealDB.ConnectionStatus)
+# Best-effort emit; never blocks the caller. Mirrors `_emit_lifecycle!` for remote.
+# Takes a bare ConnectionStatus and wraps it in a LifecycleEvent with attempt=0
+# and no cause — embedded has no reconnect loop, so neither field carries info.
+function _emit_embedded_event!(conn::EmbeddedConnection, status::SurrealDB.ConnectionStatus)
+    ev = SurrealDB.LifecycleEvent(status, 0, nothing, time())
     @async try
         isopen(conn.events) && put!(conn.events, ev)
     catch e

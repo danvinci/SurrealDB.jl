@@ -7,37 +7,38 @@
 
 @testset "_set_status! emits lifecycle events" begin
     conn = SurrealDB.RemoteWSConnection(url="ws://localhost:0/rpc",
-                                        events=Channel{SurrealDB.ConnectionStatus}(8))
+                                        events=Channel{SurrealDB.LifecycleEvent}(8))
     SurrealDB._set_status!(conn, SurrealDB.STATUS_CONNECTING)
     SurrealDB._set_status!(conn, SurrealDB.STATUS_CONNECTED)
     SurrealDB._set_status!(conn, SurrealDB.STATUS_RECONNECTING)
     SurrealDB._set_status!(conn, SurrealDB.STATUS_DISCONNECTED)
     # The async puts may take a moment; spin briefly
     sleep(0.1)
-    received = SurrealDB.ConnectionStatus[]
+    received = SurrealDB.LifecycleEvent[]
     while isready(conn.events)
         push!(received, take!(conn.events))
     end
-    @test received == [SurrealDB.STATUS_CONNECTING, SurrealDB.STATUS_CONNECTED, SurrealDB.STATUS_RECONNECTING, SurrealDB.STATUS_DISCONNECTED]
+    @test [ev.status for ev in received] == [SurrealDB.STATUS_CONNECTING, SurrealDB.STATUS_CONNECTED, SurrealDB.STATUS_RECONNECTING, SurrealDB.STATUS_DISCONNECTED]
 end
 
 @testset "_set_status! deduplicates same-state transitions" begin
     conn = SurrealDB.RemoteWSConnection(url="ws://localhost:0/rpc",
-                                        events=Channel{SurrealDB.ConnectionStatus}(8))
+                                        events=Channel{SurrealDB.LifecycleEvent}(8))
     SurrealDB._set_status!(conn, SurrealDB.STATUS_CONNECTED)
     SurrealDB._set_status!(conn, SurrealDB.STATUS_CONNECTED)  # no-op
     SurrealDB._set_status!(conn, SurrealDB.STATUS_CONNECTED)  # no-op
     sleep(0.1)
-    received = SurrealDB.ConnectionStatus[]
+    received = SurrealDB.LifecycleEvent[]
     while isready(conn.events)
         push!(received, take!(conn.events))
     end
-    @test received == [SurrealDB.STATUS_CONNECTED]  # only the first transition emits
+    @test length(received) == 1  # only the first transition emits
+    @test received[1].status == SurrealDB.STATUS_CONNECTED
 end
 
 @testset "_set_status! never blocks on closed events channel" begin
     conn = SurrealDB.RemoteWSConnection(url="ws://localhost:0/rpc",
-                                        events=Channel{SurrealDB.ConnectionStatus}(1))
+                                        events=Channel{SurrealDB.LifecycleEvent}(1))
     close(conn.events)
     # Should not throw or block
     SurrealDB._set_status!(conn, SurrealDB.STATUS_CONNECTING)
@@ -73,7 +74,7 @@ end
         sleep(0.02)
     end
     @test isready(conn_emb.events)
-    @test take!(conn_emb.events) == SurrealDB.STATUS_CONNECTED
+    @test take!(conn_emb.events).status == SurrealDB.STATUS_CONNECTED
 end
 
 @testset "_stop_pinger! is idempotent and safe on a never-started pinger" begin

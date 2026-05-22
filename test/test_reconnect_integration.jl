@@ -282,7 +282,7 @@ end
         client.connection.reconnect_jitter = 0.0
         ch = SurrealDB.events(client)
         try
-            seen = SurrealDB.ConnectionStatus[]
+            seen = SurrealDB.LifecycleEvent[]
             collector = @async try
                 while isopen(ch)
                     ev = take!(ch)
@@ -294,12 +294,13 @@ end
             MockWS.force_drop!(mock)
             @test _wait_until(timeout_s=3.0) do
                 client.connection.status == SurrealDB.STATUS_CONNECTED &&
-                    SurrealDB.STATUS_RECONNECTING in seen
+                    any(ev -> ev.status == SurrealDB.STATUS_RECONNECTING, seen)
             end
 
             # Drop+reconnect should produce STATUS_RECONNECTING and a new STATUS_CONNECTED.
-            @test SurrealDB.STATUS_RECONNECTING in seen
-            @test count(==(SurrealDB.STATUS_CONNECTED), seen) >= 1
+            statuses = [ev.status for ev in seen]
+            @test SurrealDB.STATUS_RECONNECTING in statuses
+            @test count(==(SurrealDB.STATUS_CONNECTED), statuses) >= 1
         finally
             try; SurrealDB.close!(client); catch; end
         end

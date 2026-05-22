@@ -58,6 +58,48 @@ Values:
 end
 
 """
+    LifecycleEvent
+
+Structured payload emitted on the [`events`](@ref) channel per connection
+state transition. Carries the transition target status plus reconnect
+diagnostics so operators can reason about reconnect storms without scraping
+ad-hoc `@warn` lines.
+
+Fields:
+- `status::ConnectionStatus` — the state being transitioned INTO.
+- `attempt::Int` — `0` on first connect; reconnect attempt N (1-based) thereafter.
+- `cause::Union{Exception, Nothing}` — the error that triggered
+  `STATUS_RECONNECTING` / `STATUS_DISCONNECTED`, if any.
+- `timestamp::Float64` — `time()` at emission, for relative duration measurements.
+"""
+struct LifecycleEvent
+    status::ConnectionStatus
+    attempt::Int
+    cause::Union{Exception, Nothing}
+    timestamp::Float64
+end
+
+LifecycleEvent(status::ConnectionStatus;
+               attempt::Int=0,
+               cause::Union{Exception, Nothing}=nothing,
+               timestamp::Float64=time()) =
+    LifecycleEvent(status, attempt, cause, timestamp)
+
+function Base.show(io::IO, ev::LifecycleEvent)
+    print(io, "LifecycleEvent(", ev.status, ", attempt=", ev.attempt,
+              ", cause=")
+    if ev.cause === nothing
+        print(io, "nothing")
+    else
+        # `repr` keeps the cause on one line (no stack trace) and quotes
+        # message strings so operators can grep for them.
+        print(io, repr(ev.cause))
+    end
+    print(io, ")")
+end
+
+
+"""
     RemoteConnection(url)
 
 A remote connection to a SurrealDB server via WebSocket or HTTP.
@@ -112,8 +154,8 @@ Base.@kwdef mutable struct RemoteConnection{P, W} <: AbstractRemoteConnection
     pinger_task::Union{Task, Nothing} = nothing
     "Active pinger Timer; closed by `_stop_pinger!` to interrupt the in-flight `wait` and exit the loop"
     pinger_timer::Union{Timer, Nothing} = nothing
-    "Lifecycle-event Channel — emits `STATUS_CONNECTING` / `STATUS_CONNECTED` / `STATUS_RECONNECTING` / `STATUS_DISCONNECTED` `ConnectionStatus` values on state transitions. Subscribe via [`events`](@ref). Drop-in compatible with the JS SDK's `subscribe('connected', ...)` pattern."
-    events::Channel{ConnectionStatus} = Channel{ConnectionStatus}(64)
+    "Lifecycle-event Channel — emits [`LifecycleEvent`](@ref) values on state transitions, carrying status + reconnect attempt + cause. Subscribe via [`events`](@ref). Drop-in compatible with the JS SDK's `subscribe('connected', ...)` pattern (status field carries the bare ConnectionStatus)."
+    events::Channel{LifecycleEvent} = Channel{LifecycleEvent}(64)
     "Last exception observed by the reconnect loop. Used to surface a meaningful cause when `connect()` times out instead of a bare \"Failed to connect\" string."
     last_error::Union{Exception, Nothing} = nothing
     "Whether to verify TLS certificates on `wss://` connections. Default `true`. Set to `false` for self-signed certs in test/CI environments — never disable in production."
@@ -221,27 +263,48 @@ end
 # --- WebSocket connect with reconnection ---
 
 """
-    _set_status!(conn::RemoteConnection, status::ConnectionStatus)
+    _emit_lifecycle!(conn::RemoteConnection, status::ConnectionStatus;
+                     attempt::Int=0, cause::Union{Exception,Nothing}=nothing)
 
-Update `conn.status` and emit a lifecycle event on `conn.events` when the
-status actually changes. Best-effort emission via `@async`: full or closed
-channels never block the caller.
+Update `conn.status` and emit a [`LifecycleEvent`](@ref) on `conn.events`.
+Best-effort channel emission via `@async`: full or closed channels never
+block the caller.
+
+Dedup: same-status calls are skipped UNLESS `attempt` changed — so a
+3rd reconnect attempt still emits even if the status was already
+`STATUS_RECONNECTING`.
+
+The connection's `logger` is invoked SYNCHRONOUSLY on the calling task;
+exceptions from the logger are caught and surfaced via `@warn` rather
+than propagated.
 """
-function _set_status!(conn::RemoteConnection, status::ConnectionStatus)
+function _emit_lifecycle!(conn::RemoteConnection, status::ConnectionStatus;
+                          attempt::Int=0,
+                          cause::Union{Exception, Nothing}=nothing)
     old = conn.status
     conn.status = status
-    if old != status
-        @async try
-            isopen(conn.events) && put!(conn.events, status)
-        catch e
-            e isa InvalidStateException || rethrow()
-        end
+    # Same-status-same-attempt is the no-op dedup; same-status-different-attempt
+    # still emits so observers see retry progress.
+    if old == status && attempt == 0
+        return nothing
+    end
+    ev = LifecycleEvent(status, attempt, cause, time())
+    @async try
+        isopen(conn.events) && put!(conn.events, ev)
+    catch e
+        e isa InvalidStateException || rethrow()
     end
     return nothing
 end
 
+# Thin shim: pre-LifecycleEvent call sites used `_set_status!(conn, status)`.
+# Forwarded as a 0-attempt, no-cause emission. New code should call
+# `_emit_lifecycle!` directly so attempt/cause threading is explicit.
+_set_status!(conn::RemoteConnection, status::ConnectionStatus) =
+    _emit_lifecycle!(conn, status)
+
 function _connect_remote!(conn::RemoteHTTPConnection)
-    _set_status!(conn, STATUS_CONNECTED)
+    _emit_lifecycle!(conn, STATUS_CONNECTED; attempt=0, cause=nothing)
     return nothing
 end
 
@@ -584,24 +647,31 @@ function tokens(client::SurrealClient{C}) where {C<:AbstractConnection}
 end
 
 """
-    events(client::SurrealClient{<:AbstractRemoteConnection}) -> Channel{ConnectionStatus}
+    events(client::SurrealClient{<:AbstractRemoteConnection}) -> Channel{LifecycleEvent}
 
-Return a Channel that emits `ConnectionStatus` values on remote-connection
-state transitions: `STATUS_CONNECTING`, `STATUS_CONNECTED`, `STATUS_RECONNECTING`,
-`STATUS_DISCONNECTED`. Drop-in equivalent of the JS SDK's
-`db.subscribe('connected', ...)` pattern. Best-effort emission — if no
-consumer drains the channel, events are queued (capacity 64) and dropped
-silently when the buffer is full.
+Return a Channel that emits [`LifecycleEvent`](@ref) values on
+remote-connection state transitions. Each event carries:
 
-Only RemoteConnection emits events today; embedded connections have a much
-simpler lifecycle (connect succeeds or throws) so the Channel exists but
-is never written to.
+- `ev.status` — `STATUS_CONNECTING` / `STATUS_CONNECTED` /
+  `STATUS_RECONNECTING` / `STATUS_DISCONNECTED`
+- `ev.attempt` — 0 on first connect, N (1-based) on the Nth reconnect attempt
+- `ev.cause` — the `Exception` that triggered RECONNECTING / DISCONNECTED, or `nothing`
+- `ev.timestamp` — `time()` at emission
+
+Drop-in equivalent of the JS SDK's `db.subscribe('connected', ...)`
+pattern (consume `ev.status` for the bare ConnectionStatus). Best-effort
+emission — if no consumer drains the channel, events are queued (capacity
+64) and dropped silently when the buffer is full.
+
+For synchronous side effects (e.g. structured logging), see
+[`AbstractSurrealLogger`](@ref) / [`FnLogger`](@ref) — those fire on the
+emitting task rather than buffering through the channel.
 
 # Examples
 ```julia
 db = SurrealDB.connect("ws://localhost:8000")
 @async for ev in SurrealDB.events(db)
-    @info "SurrealDB lifecycle" event=ev status=SurrealDB.status(db)
+    @info "SurrealDB lifecycle" status=ev.status attempt=ev.attempt cause=ev.cause
 end
 ```
 """
