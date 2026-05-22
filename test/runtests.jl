@@ -87,6 +87,9 @@ end
     _section("HTTP adapt method") do
         @testset "HTTP adapt method" begin include("test_http_adapt.jl") end
     end
+    _section("Live KILLED dispatch") do
+        @testset "Live KILLED dispatch" begin include("test_live_kill.jl") end
+    end
     _section("Reconnect") do
         @testset "Reconnect" begin include("test_reconnect.jl") end
     end
