@@ -58,6 +58,55 @@ Values:
 end
 
 """
+    STATUS_DISCONNECTED
+
+No active session. Initial state on `RemoteConnection` construction and
+terminal state after [`close!`](@ref). No RPCs may be sent in this state;
+attempting to do so throws [`ConnectionUnavailableError`](@ref). The
+reconnect loop only fires from `STATUS_RECONNECTING`; transitioning into
+`STATUS_DISCONNECTED` is final unless the user re-calls [`connect`](@ref).
+"""
+STATUS_DISCONNECTED
+
+"""
+    STATUS_CONNECTING
+
+First-ever connect attempt in progress. Emitted once at the start of
+[`connect`](@ref), before the WebSocket upgrade or HTTP probe completes.
+Distinct from `STATUS_RECONNECTING` so observers can tell a cold start
+apart from mid-session recovery. RPCs submitted in this window block on
+the response channel and proceed when the transition to
+`STATUS_CONNECTED` lands.
+"""
+STATUS_CONNECTING
+
+"""
+    STATUS_CONNECTED
+
+Session established, transport handshake complete, RPCs flow. The only
+state in which [`query`](@ref) / CRUD / [`live`](@ref) and friends will
+write to the socket without blocking on a state transition. Emitted on
+initial connect AND on every successful reconnect after state replay
+(`use!` / `signin!` / `let!` / `live` re-registrations) completes — so
+event consumers always see a fully-restored session.
+"""
+STATUS_CONNECTED
+
+"""
+    STATUS_RECONNECTING
+
+Session lost mid-operation; reconnect loop attempting recovery. Entered
+when the WS reader sees EOF / an `IOError` or the writer fails to flush.
+In-flight RPCs at the moment of drop receive `ConnectionError` via
+`_signal_inflight_disconnect!`; new RPCs submitted during this window
+queue on their response channels and the loop signals them on success
+or after `reconnect_max_attempts` exhausts (transition to
+`STATUS_DISCONNECTED`). The accompanying [`LifecycleEvent`](@ref)
+carries `attempt` (1-based) and `cause` (the triggering exception).
+"""
+STATUS_RECONNECTING
+
+"""
     LifecycleEvent
 
 Structured payload emitted on the [`events`](@ref) channel per connection
