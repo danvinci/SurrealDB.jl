@@ -23,7 +23,7 @@ SurrealDB.kill!(sub)
 ```
 """
 function live(client::SurrealClient{C}, table; diff::Bool=false) where {C<:AbstractConnection}
-    result = _rpc_call(client, "live", Any[_to_string(table), diff])
+    result = _rpc_call(client, "live", Any[table, diff])
     query_id = result isa String ? result : string(result)
 
     # Create channel for notifications
@@ -36,7 +36,7 @@ function live(client::SurrealClient{C}, table; diff::Bool=false) where {C<:Abstr
     if client.connection isa RemoteWSConnection
         lock(client.connection.live_lock) do
             client.connection.notification_channels[query_id] = ch
-            client.connection.live_subscriptions[query_id] = (string(table), diff)
+            client.connection.live_subscriptions[query_id] = (table, diff)
             client.connection.live_handles[query_id] = sub
         end
     elseif client.connection isa EmbeddedConnection

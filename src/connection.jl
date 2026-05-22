@@ -87,8 +87,8 @@ Base.@kwdef mutable struct RemoteConnection{P, W} <: AbstractRemoteConnection
     notification_channels::Dict{String, Channel} = Dict{String, Channel}()
     "Guards the three live-query Dicts (notification_channels, live_subscriptions, live_handles) against concurrent registration/teardown across reconnect, kill!, and the WS reader"
     live_lock::ReentrantLock = ReentrantLock()
-    "live query_id → (table, diff) — used by `_reconnect_apply_state!` to re-issue subscriptions on reconnect"
-    live_subscriptions::Dict{String, Tuple{String, Bool}} = Dict{String, Tuple{String, Bool}}()
+    "live query_id → (table, diff) — used by `_reconnect_apply_state!` to re-issue subscriptions on reconnect. `table` is stored as the caller-supplied type (`String` / `Table` / `RecordID`) so reconnect replay preserves CBOR tag fidelity."
+    live_subscriptions::Dict{String, Tuple{Any, Bool}} = Dict{String, Tuple{Any, Bool}}()
     "live query_id → LiveSubscription handle — used by `kill!(client, qid)` to flip caller-held state"
     live_handles::Dict{String, LiveSubscription} = Dict{String, LiveSubscription}()
     "Background reader task; drains WS messages and dispatches to response/notification channels"
