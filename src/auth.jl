@@ -206,3 +206,83 @@ function _parse_jwt_exp(token::AbstractString)::Union{Int, Nothing}
            exp isa Real ? Int(floor(exp)) :
            nothing
 end
+
+# --- refresh! ---
+
+"""
+    refresh!(client) -> token::String
+
+Exchange the current refresh token for a new access + refresh pair via the
+SurrealDB `refresh` RPC. Updates `client.tokens` and `client.token` on
+success and reschedules the proactive refresh timer against the new `exp`
+claim. Returns the new access token.
+
+Throws [`NotAllowedError`](@ref) if the client has no refresh token to
+spend (Root/NS auth, scopes without `WITH REFRESH`, or after `invalidate!`).
+"""
+function refresh!(client::SurrealClient{C}) where {C<:AbstractConnection}
+    tks = client.tokens
+    if tks === nothing || tks.refresh === nothing
+        throw(NotAllowedError("No refresh token available; sign in with `WITH REFRESH` scope first."))
+    end
+    result = _rpc_call(client, "refresh", Any[tks.refresh])
+    new_access = _extract_token(result)
+    # Server may rotate the refresh token or keep the old one — fall back to
+    # the existing refresh when the response omits a fresh one.
+    new_refresh = _extract_refresh(result)
+    if new_refresh === nothing
+        new_refresh = tks.refresh
+    end
+    _apply_tokens!(client, new_access, new_refresh)
+    return new_access
+end
+
+# --- Proactive refresh timer ---
+
+# Remote-client overrides for the no-op hooks declared above. Embedded
+# clients keep the no-op behavior — there's no exp to act on.
+function _reschedule_refresh_timer!(client::SurrealClient{<:RemoteConnection})
+    _schedule_refresh_timer!(client.connection, client)
+    return nothing
+end
+
+function _cancel_refresh_timer!(client::SurrealClient{<:RemoteConnection})
+    _stop_refresh_timer!(client.connection)
+    return nothing
+end
+
+# Schedule a one-shot Timer that fires `refresh_lead_time` seconds before
+# the access token's `exp` claim. Skips scheduling when:
+#   - the client has no tokens (cleared via `invalidate!`/`close!`)
+#   - the access token has no parseable `exp` claim
+#   - no refresh token is available to spend
+# Already-expired (or near-expired) tokens fire the callback immediately by
+# scheduling a 0-second timer; the callback handles failure by clearing
+# tokens and emitting a @warn — the connection stays up.
+function _schedule_refresh_timer!(conn::RemoteConnection, client::SurrealClient)
+    _stop_refresh_timer!(conn)
+    tks = client.tokens
+    (tks === nothing || tks.refresh === nothing) && return nothing
+    exp = _parse_jwt_exp(tks.access)
+    exp === nothing && return nothing
+    now_s = time()
+    delay = max(0.0, Float64(exp) - now_s - conn.refresh_lead_time)
+    conn.refresh_timer = Timer(delay) do _
+        try
+            refresh!(client)
+        catch e
+            @warn "SurrealDB proactive refresh failed; clearing tokens" exception=e
+            _clear_tokens!(client)
+        end
+    end
+    return nothing
+end
+
+function _stop_refresh_timer!(conn::RemoteConnection)
+    t = conn.refresh_timer
+    if t !== nothing
+        try; close(t); catch; end
+    end
+    conn.refresh_timer = nothing
+    return nothing
+end

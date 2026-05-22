@@ -104,6 +104,15 @@ function _reconnect_apply_state!(conn::RemoteWSConnection)
         end
     end
 
+    # Re-evaluate proactive refresh against the current token's exp. The
+    # access token may have expired during the disconnect — if so, fire
+    # refresh! immediately (scheduling a 0-delay timer); the next RPC will
+    # otherwise hit a NotAllowed from the server. If the refresh itself
+    # fails the timer callback clears tokens and emits a warning.
+    if client.tokens !== nothing && client.tokens.refresh !== nothing
+        _schedule_refresh_timer!(conn, client)
+    end
+
     # Re-set session variables (`let!`) — server-side state is wiped on
     # reconnect; the client tracks them in `client.variables` for replay.
     # Best-effort: a single failed key shouldn't block the rest.

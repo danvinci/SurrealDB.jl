@@ -32,7 +32,7 @@ const EXPECTED_EXPORTS = Set([
     :connect, :close!, :status, :events,
 
     # Auth methods
-    :signin!, :signup!, :authenticate!, :invalidate!, :tokens,
+    :signin!, :signup!, :authenticate!, :invalidate!, :refresh!, :tokens,
 
     # Database scope
     :use!, :info, :version, :health, :ping,

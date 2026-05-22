@@ -120,6 +120,11 @@ Base.@kwdef mutable struct RemoteConnection{P, W} <: AbstractRemoteConnection
     tls_verify::Bool = true
     "Maximum time (seconds) `_rpc_call` will wait for a response before throwing `ConnectionError`. Prevents indefinite hangs when a request reaches the server but no response is delivered (e.g. server bug, malformed response that fails id-routing). Set to `Inf` to disable."
     rpc_timeout::Float64 = 30.0
+    # --- Proactive token refresh ---
+    "Active refresh-timer; cancelled on close!, replaced on every new signin/signup/refresh. `nothing` when the current access token has no parseable `exp` claim or no refresh token to spend."
+    refresh_timer::Union{Timer, Nothing} = nothing
+    "How many seconds before the access token's `exp` claim to fire the proactive refresh. Default 30s — wide enough to absorb RTT and clock skew, narrow enough that revocations surface quickly."
+    refresh_lead_time::Float64 = 30.0
 end
 
 const RemoteWSConnection = RemoteConnection{:ws}
@@ -250,6 +255,9 @@ end
 function _close_remote!(conn::RemoteConnection)
     conn.reconnect = false
     _set_status!(conn, STATUS_DISCONNECTED)
+    # Cancel any in-flight refresh Timer so its callback doesn't fire on a
+    # dead client. Safe across both transports (field lives on RemoteConnection).
+    _stop_refresh_timer!(conn)
     # _stop_pinger! has no method for HTTP — short-circuit here.
     if conn isa RemoteHTTPConnection
         return nothing
@@ -352,6 +360,7 @@ Keyword arguments:
 - `ping_interval::Float64=30.0`: Keepalive cadence; `0` disables
 - `tls_verify::Bool=true`: Verify TLS certs on `wss://`. Set `false` only for self-signed test certs
 - `rpc_timeout::Float64=30.0`: Max seconds to wait for an RPC response; `Inf` disables
+- `refresh_lead_time::Float64=30.0`: How far before the access token's `exp` claim to fire the proactive refresh. Only active when the server issued a refresh token (`WITH REFRESH` scopes); otherwise no timer is scheduled.
 - `wire::Symbol=:cbor`: Wire format — `:cbor` (default, binary, type-faithful) or `:json` (text, legacy/debug). Selected at connect time; baked into the connection's type parameter for compile-time codec dispatch. Embedded connections ignore this parameter.
 
 Returns a `SurrealClient{C}` where `C` is the concrete connection backend type.
@@ -386,6 +395,7 @@ function connect(url::String;
                  ping_interval::Float64=30.0,
                  tls_verify::Bool=true,
                  rpc_timeout::Float64=30.0,
+                 refresh_lead_time::Float64=30.0,
                  wire::Symbol=:cbor)
     scheme = _parse_scheme(url)
     wire in (:json, :cbor) || throw(ArgumentError("Unsupported wire format: $wire (expected :json or :cbor)"))
@@ -414,7 +424,8 @@ function connect(url::String;
                                  reconnect_jitter=reconnect_jitter,
                                  ping_interval=ping_interval,
                                  tls_verify=tls_verify,
-                                 rpc_timeout=rpc_timeout) :
+                                 rpc_timeout=rpc_timeout,
+                                 refresh_lead_time=refresh_lead_time) :
             RemoteConnection{:ws, wire}(url=ws_url,
                                http_base_url=http_base,
                                response_channels=Dict{Int, Channel}(),
@@ -427,7 +438,8 @@ function connect(url::String;
                                reconnect_jitter=reconnect_jitter,
                                ping_interval=ping_interval,
                                tls_verify=tls_verify,
-                               rpc_timeout=rpc_timeout)
+                               rpc_timeout=rpc_timeout,
+                               refresh_lead_time=refresh_lead_time)
         _connect_remote!(conn)
         if is_ws
             for _ in 1:50
