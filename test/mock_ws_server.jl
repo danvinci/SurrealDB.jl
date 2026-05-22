@@ -23,6 +23,15 @@ mutable struct Mock
     # Per-connection scenario knobs. Mutated between scenarios.
     drop_after_n::Int            # 0 = never (well-behaved)
     reject_first_n::Int          # close TCP without WS upgrade for first N
+    # When non-nothing, `signin` replies with `{token, refresh}` so the SDK
+    # picks up a typed `Tokens(access, refresh)`. Default = bare token string.
+    signin_access::Union{String, Nothing}
+    signin_refresh::Union{String, Nothing}
+    # `refresh` RPC reply: {token, refresh}. Counts every refresh call so
+    # tests can assert proactive renewal fired.
+    refresh_access::String
+    refresh_refresh::String
+    refresh_count::Int
 
     # Observed state — append-only across the lifetime of the mock.
     connect_attempts::Int        # incremented for every TCP accept (incl. rejected)
@@ -41,11 +50,17 @@ mutable struct Mock
     lock::ReentrantLock
 end
 
-function start_mock(; drop_after_n::Int=0, reject_first_n::Int=0)
+function start_mock(; drop_after_n::Int=0, reject_first_n::Int=0,
+                      signin_access::Union{String, Nothing}=nothing,
+                      signin_refresh::Union{String, Nothing}=nothing,
+                      refresh_access::String="NEW_JWT",
+                      refresh_refresh::String="NEW_REFRESH")
     listener = listen(IPv4("127.0.0.1"), 0)  # OS-assigned port
     port = Int(getsockname(listener)[2])
     mock = Mock(port, listener, nothing,
                 drop_after_n, reject_first_n,
+                signin_access, signin_refresh,
+                refresh_access, refresh_refresh, 0,
                 0, 0, Dict{String, Any}[], String[],
                 0, nothing, ReentrantLock())
     mock.serve_task = @async _serve_loop(mock)
@@ -53,6 +68,8 @@ function start_mock(; drop_after_n::Int=0, reject_first_n::Int=0)
     sleep(0.05)
     return mock
 end
+
+refresh_count(mock::Mock) = lock(() -> mock.refresh_count, mock.lock)
 
 function stop_mock!(mock::Mock)
     # Close any active WS first so the connection coroutine returns and
@@ -178,8 +195,26 @@ end
 function _reply(mock::Mock, ws, req::AbstractDict, proto::AbstractString)
     method = get(req, "method", "")
     id = get(req, "id", "")
-    result = if method == "signin" || method == "authenticate"
+    result = if method == "signin"
+        # Typed `{token, refresh}` shape when the test configured one; else
+        # the legacy bare-string token (matches Root/NS auth replies).
+        if mock.signin_access !== nothing
+            d = Dict{String, Any}("token" => mock.signin_access)
+            if mock.signin_refresh !== nothing
+                d["refresh"] = mock.signin_refresh
+            end
+            d
+        else
+            "mock-jwt-token"
+        end
+    elseif method == "authenticate"
         "mock-jwt-token"
+    elseif method == "refresh"
+        lock(mock.lock) do
+            mock.refresh_count += 1
+        end
+        Dict{String, Any}("token" => mock.refresh_access,
+                          "refresh" => mock.refresh_refresh)
     elseif method == "use"
         nothing
     elseif method == "live"

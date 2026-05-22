@@ -96,6 +96,9 @@ end
     _section("Reconnect Integration") do
         @testset "Reconnect Integration" begin include("test_reconnect_integration.jl") end
     end
+    _section("Tokens / refresh") do
+        @testset "Tokens / refresh" begin include("test_tokens.jl") end
+    end
     _section("Load resilience") do
         @testset "Load resilience" begin include("test_load_resilience.jl") end
     end

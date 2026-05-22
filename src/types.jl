@@ -131,8 +131,6 @@ struct Tokens
 end
 
 Tokens(access::AbstractString) = Tokens(String(access), nothing)
-Tokens(access::AbstractString, refresh::AbstractString) = Tokens(String(access), String(refresh))
-Tokens(access::AbstractString, ::Nothing) = Tokens(String(access), nothing)
 
 function Base.show(io::IO, t::Tokens)
     rf = t.refresh === nothing ? "-" : _truncate_token(t.refresh)
