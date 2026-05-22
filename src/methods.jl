@@ -153,7 +153,7 @@ Create a new record in the table or with a specific ID.
 Returns the created record(s) as a Dict or Vector of Dicts.
 """
 function create(client::SurrealClient{C}, what, data) where {C<:AbstractConnection}
-    return _rpc_call(client, "create", Any[_to_string(what), data])
+    return _rpc_call(client, "create", Any[what, data])
 end
 
 """
@@ -170,7 +170,7 @@ does not exist.
 See also: [`create`](@ref), [`update`](@ref), [`delete`](@ref).
 """
 function select(client::SurrealClient{C}, what) where {C<:AbstractConnection}
-    return _rpc_call(client, "select", Any[_to_string(what)])
+    return _rpc_call(client, "select", Any[what])
 end
 
 """
@@ -188,7 +188,7 @@ Returns the updated record(s).
 See also: [`merge`](@ref), [`upsert`](@ref), [`patch`](@ref).
 """
 function update(client::SurrealClient{C}, what, data) where {C<:AbstractConnection}
-    return _rpc_call(client, "update", Any[_to_string(what), data])
+    return _rpc_call(client, "update", Any[what, data])
 end
 
 """
@@ -204,7 +204,7 @@ on SurrealDB v3 (returns `nothing`).
 See also: [`select`](@ref), [`create`](@ref).
 """
 function delete(client::SurrealClient{C}, what) where {C<:AbstractConnection}
-    return _rpc_call(client, "delete", Any[_to_string(what)])
+    return _rpc_call(client, "delete", Any[what])
 end
 
 """
@@ -222,7 +222,7 @@ Returns the inserted record(s).
 See also: [`create`](@ref), [`insert_relation`](@ref).
 """
 function insert(client::SurrealClient{C}, table, data) where {C<:AbstractConnection}
-    return _rpc_call(client, "insert", Any[_to_string(table), data])
+    return _rpc_call(client, "insert", Any[table, data])
 end
 
 """
@@ -235,7 +235,7 @@ record may not create it on all SurrealDB versions.
 See also: [`update`](@ref), [`merge`](@ref).
 """
 function upsert(client::SurrealClient{C}, what, data) where {C<:AbstractConnection}
-    return _rpc_call(client, "upsert", Any[_to_string(what), data])
+    return _rpc_call(client, "upsert", Any[what, data])
 end
 
 """
@@ -251,7 +251,7 @@ present in `data` overwrite existing fields; fields absent are preserved
 See also: [`update`](@ref), [`patch`](@ref).
 """
 function merge(client::SurrealClient{C}, what, data) where {C<:AbstractConnection}
-    return _rpc_call(client, "merge", Any[_to_string(what), data])
+    return _rpc_call(client, "merge", Any[what, data])
 end
 
 """
@@ -285,9 +285,7 @@ See also: [`insert_relation`](@ref), [`Relationship`](@ref).
 function relate(client::SurrealClient{C}, from, edge, to;
                 data=nothing) where {C<:AbstractConnection}
     payload = data === nothing ? Dict{String, Any}() : data
-    return _rpc_call(client, "relate",
-                     Any[_to_string(from), _to_string(edge),
-                         _to_string(to), payload])
+    return _rpc_call(client, "relate", Any[from, edge, to, payload])
 end
 
 function relate(client::SurrealClient{C}, rel::Relationship) where {C<:AbstractConnection}
@@ -306,13 +304,15 @@ seeded edges; `relate` is the canonical first-class edge primitive.
 See also: [`relate`](@ref), [`Relationship`](@ref).
 """
 function insert_relation(client::SurrealClient{C}, relationship::Relationship) where {C<:AbstractConnection}
+    # Endpoints stay typed: JSON.lower stringifies for the JSON wire, CBOR
+    # encodes RecordIDs as Tag(8, [table, key]) with full fidelity.
     payload = Dict{String, Any}(
-        "in" => _to_string(relationship.rel_in),
-        "out" => _to_string(relationship.rel_out)
+        "in" => relationship.rel_in,
+        "out" => relationship.rel_out
     )
     merge!(payload, relationship.data)
     return _rpc_call(client, "insert_relation",
-                     Any[_to_string(relationship.relation), payload])
+                     Any[relationship.relation, payload])
 end
 
 """
@@ -329,7 +329,7 @@ SurrealDB.patch(db, "user:1", [
 ```
 """
 function patch(client::SurrealClient{C}, what, patches) where {C<:AbstractConnection}
-    return _rpc_call(client, "patch", Any[_to_string(what), patches, true])
+    return _rpc_call(client, "patch", Any[what, patches, true])
 end
 
 """
