@@ -85,7 +85,6 @@ function _http_adapt_method(method::String, params::Vector{Any}, prefix::String)
     elseif method == "create"
         what = _to_string(params[1])
         data = length(params) > 1 ? params[2] : Dict{String, Any}()
-        data_json = JSON.json(data)
         return "query", Any[prefix * "CREATE $what CONTENT \$data", Dict("data" => data)]
     elseif method == "update"
         what = _to_string(params[1])
