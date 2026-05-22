@@ -12,6 +12,9 @@ URL schemes:
 - `mem://` or `memory://` — in-memory database (no persistence)
 - `surrealkv://path/to/data.skv` — file-backed database
 
+`surrealkv+versioned://` (MVCC mode) and `rocksdb://` are not enabled in the
+bundled `libsurreal_c` build; passing them raises `EmbeddedFFIError(sr_connect)`.
+
 Requires `libsurreal` to be loaded via [`libsurreal_load!`](@ref).
 """
 Base.@kwdef mutable struct EmbeddedConnection <: AbstractConnection
