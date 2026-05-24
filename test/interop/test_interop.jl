@@ -29,11 +29,13 @@ const EXPECTED = Dict(
 
 function _normalize(v)
     # SurrealDB returns ints as Int64 and floats as Float64; numeric equality
-    # already handles cross-type. Strings, bools, nothing pass through. Vectors
-    # need recursive normalization for the array_mixed case.
+    # already handles cross-type. Strings, bools pass through. Vectors recurse
+    # for the array_mixed case. CBOR-decoded `null` inside an array surfaces
+    # as `Missing`; collapse to `nothing` so == doesn't return `missing`.
     if v isa AbstractVector
         return Any[_normalize(x) for x in v]
     end
+    v isa Missing && return nothing
     return v
 end
 
