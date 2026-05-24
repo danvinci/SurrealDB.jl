@@ -75,10 +75,7 @@ function run_interop_tests()
         end
     end
 
-    # Nested object: spot-check leaf values rather than full-tree equality
-    # (the datetime field round-trips as a String in JSON wire format, not
-    # as a Julia DateTime, so byte-equality on the nested struct would
-    # require a tz-aware comparison helper).
+    # Nested object: spot-check leaf values rather than full-tree equality.
     if haskey(by_kind, "nested_object")
         nested = by_kind["nested_object"]["value"]
         @test nested isa AbstractDict
@@ -88,8 +85,9 @@ function run_interop_tests()
         @test outer["inner"][2] == 20
         @test outer["inner"][3]["deep"] == "leaf"
         @test haskey(outer, "ts")
-        # ts is an ISO-8601 string after round-trip; sanity-check format.
-        @test occursin(r"^2024-01-15", string(outer["ts"]))
+        # Python writes a typed UTC datetime; under CBOR it round-trips as a
+        # SurrealDateTime. 1705321845 = 2024-01-15T12:30:45Z.
+        @test outer["ts"] == SurrealDB.SurrealDateTime(1705321845, UInt32(0))
     end
 
     SurrealDB.close!(db)
