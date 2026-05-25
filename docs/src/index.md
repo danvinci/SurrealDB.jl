@@ -26,5 +26,5 @@ Status: alpha (pre-1.0).
 - [Integrations](integrations.md) — StructTypes, Tables.jl, MetaGraphsNext
 - [Debugging](debugging.md) — `@debug` channel, FFI errors
 
-[API Reference](api.md) covers every exported symbol with its docstring.
+**API Reference** ([Connection & Auth](api/connection.md), [Query, Live, Transactions](api/query.md), [Types](api/types.md), [Errors](api/errors.md)) covers every exported symbol with its docstring.
 [GitHub repo](https://github.com/danvinci/surrealdb) hosts source, README, and issues.

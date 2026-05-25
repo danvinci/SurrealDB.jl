@@ -22,27 +22,13 @@ restrictions surface as `MethodError` at the API boundary instead of runtime
 """
 abstract type AbstractRemoteConnection <: AbstractConnection end
 
-# Forward declaration so the const aliases below can reference the parametric
-# type. Defined below in full.
-"""
-    RemoteWSConnection = RemoteConnection{:ws}
-    RemoteHTTPConnection = RemoteConnection{:http}
-
-Remote-connection types, parametric on the transport tag (`P` = `:ws` or
-`:http`) and the wire format (`W` = `:json` or `:cbor`). The aliases above
-are UnionAll wildcards over `W` — `RemoteWSConnection` matches both
-`RemoteConnection{:ws, :json}` and `RemoteConnection{:ws, :cbor}`. Methods
-that care only about the transport dispatch on the alias; methods that
-care about the wire add a `W` parameter (see `src/wire.jl`).
-"""
-
 # --- Remote connection ---
 
 """
     ConnectionStatus
 
-Connection lifecycle states. Used by [`RemoteConnection.status`](@ref), the
-[`events`](@ref) channel, and [`status`](@ref).
+Connection lifecycle states. Held on the `RemoteConnection.status` field and
+surfaced via the [`events`](@ref) channel and [`status`](@ref).
 
 Values:
 - `STATUS_DISCONNECTED`: no active session (initial state, or after `close!`).
@@ -258,7 +244,26 @@ Base.@kwdef mutable struct RemoteConnection{P, W} <: AbstractRemoteConnection
     logger::AbstractSurrealLogger = NullLogger()
 end
 
+"""
+    RemoteWSConnection = RemoteConnection{:ws}
+
+Alias for the WebSocket transport. UnionAll wildcard over the wire-format
+parameter `W`, so it matches both `RemoteConnection{:ws, :json}` and
+`RemoteConnection{:ws, :cbor}`. Methods that care only about the transport
+dispatch on this alias; methods that care about the wire add a `W`
+parameter (see `src/wire.jl`).
+"""
 const RemoteWSConnection = RemoteConnection{:ws}
+
+"""
+    RemoteHTTPConnection = RemoteConnection{:http}
+
+Alias for the HTTP transport. UnionAll wildcard over the wire-format
+parameter `W`, so it matches both `RemoteConnection{:http, :json}` and
+`RemoteConnection{:http, :cbor}`. HTTP is stateless per-request; live
+queries and sessions are WS-only and surface as `MethodError` when
+attempted on this type.
+"""
 const RemoteHTTPConnection = RemoteConnection{:http}
 
 # Defaulting outer constructor: `RemoteConnection{:ws}(...)` (and the

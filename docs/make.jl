@@ -18,7 +18,12 @@ makedocs(;
             "Integrations"   => "integrations.md",
             "Debugging"      => "debugging.md",
         ],
-        "API Reference" => "api.md",
+        "API Reference" => [
+            "Connection & Auth" => "api/connection.md",
+            "Query, Live, Transactions" => "api/query.md",
+            "Types" => "api/types.md",
+            "Errors" => "api/errors.md",
+        ],
     ],
     format = Documenter.HTML(;
         prettyurls = get(ENV, "CI", "false") == "true",
@@ -26,6 +31,8 @@ makedocs(;
         edit_link = "main",
         assets = String[],
     ),
+    checkdocs = :exports,
+    checkdocs_ignored_modules = [SurrealDB.SurrealCBOR],
     warnonly = true,
 )
 
