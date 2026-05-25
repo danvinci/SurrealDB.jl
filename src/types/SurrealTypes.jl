@@ -17,7 +17,7 @@ module SurrealTypes
 using Dates
 using UUIDs
 
-export RecordID, Table
+export RecordID, StringRecordID, Table
 export SurrealDecimal, SurrealDateTime, SurrealDuration, SurrealFile
 export SurrealRange, BoundIncluded, BoundExcluded
 export GeometryPoint, GeometryLine, GeometryPolygon,
@@ -63,6 +63,32 @@ Base.show(io::IO, r::RecordID) = print(io, "RecordID(\"$(r.table):$(r.id)\")")
 Base.print(io::IO, r::RecordID) = print(io, r.table, ":", r.id)
 Base.:(==)(a::RecordID, b::RecordID) = a.table == b.table && a.id == b.id
 Base.hash(r::RecordID, h::UInt) = hash(r.id, hash(r.table, hash(:RecordID, h)))
+
+"""
+    StringRecordID(s::AbstractString)
+
+Opaque "raw string record id" wrapper. Holds `s` verbatim and ships it
+to the server as a plain CBOR text string for server-side parsing. Use
+when the id form is too complex for `RecordID(table, id)` (e.g. nested
+objects, ranges, escaped characters) and you want the server's parser
+to handle it. Mirrors `StringRecordId` in surrealdb.js / surrealdb.net.
+
+For the common case prefer `RecordID(t, i)` or `rid"t:i"` — those go
+through the typed CBOR path and round-trip on decode.
+
+```julia
+StringRecordID("users:42")
+StringRecordID("posts:⟨2024-01-15, 'ulid'⟩")
+```
+"""
+struct StringRecordID
+    value::String
+end
+
+Base.string(s::StringRecordID) = s.value
+Base.show(io::IO, s::StringRecordID) = print(io, "StringRecordID(\"", s.value, "\")")
+Base.:(==)(a::StringRecordID, b::StringRecordID) = a.value == b.value
+Base.hash(s::StringRecordID, h::UInt) = hash(s.value, hash(:StringRecordID, h))
 
 # --- table ---
 

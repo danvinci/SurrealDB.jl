@@ -113,6 +113,7 @@ _wire_content_type(::RemoteConnection{P, :cbor}) where {P} = "application/cbor"
 # string representation. `wire=:cbor` is the lossless path.
 
 JSON.lower(r::RecordID) = string(r)
+JSON.lower(s::StringRecordID) = s.value
 JSON.lower(t::Table) = t.name
 
 JSON.lower(d::SurrealDecimal) = d.value

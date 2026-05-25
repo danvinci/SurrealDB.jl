@@ -20,7 +20,7 @@ using Dates
 
 # Sibling SurrealTypes: typed wire-format values whose encode methods
 # this module extends. SurrealTypes itself has no upward deps.
-using ..SurrealTypes: RecordID, Table,
+using ..SurrealTypes: RecordID, StringRecordID, Table,
     SurrealDecimal, SurrealDateTime, SurrealDuration, SurrealFile,
     SurrealRange, BoundIncluded, BoundExcluded,
     GeometryPoint, GeometryLine, GeometryPolygon,
@@ -50,6 +50,7 @@ include("tags.jl")
 # definitions + Base.* overloads live in ../types/SurrealTypes.jl.
 include("types/none.jl")
 include("types/recordid.jl")
+include("types/stringrecordid.jl")
 include("types/table.jl")
 include("types/uuid.jl")
 include("types/decimal.jl")

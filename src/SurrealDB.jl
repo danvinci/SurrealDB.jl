@@ -34,7 +34,7 @@ export to_table, to_metagraph
 # --- Types ---
 export ConnectionStatus, STATUS_DISCONNECTED, STATUS_CONNECTING, STATUS_CONNECTED, STATUS_RECONNECTING
 export LifecycleEvent, AbstractSurrealLogger, NullLogger, FnLogger
-export RecordID, Table, SurrealValue
+export RecordID, StringRecordID, Table, SurrealValue
 export RootAuth, NamespaceAuth, ScopedAuth, JwtAuth
 export Relationship, LiveSubscription, LiveNotification
 
@@ -57,8 +57,8 @@ export EmbeddedFFIError, ConnectionUnavailableError, UnsupportedEngineError, Uns
 # JSON-typed) extend `encode` on these types without piracy. Substrate-isolated:
 # stdlib-only deps, no upward imports.
 include("types/SurrealTypes.jl")
-using .SurrealTypes: RecordID, Table, SurrealDecimal, SurrealDateTime, SurrealDuration,
-    SurrealFile, SurrealRange, BoundIncluded, BoundExcluded,
+using .SurrealTypes: RecordID, StringRecordID, Table, SurrealDecimal, SurrealDateTime,
+    SurrealDuration, SurrealFile, SurrealRange, BoundIncluded, BoundExcluded,
     GeometryPoint, GeometryLine, GeometryPolygon,
     GeometryMultiPoint, GeometryMultiLine, GeometryMultiPolygon,
     GeometryCollection
