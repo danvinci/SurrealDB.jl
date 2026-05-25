@@ -1,6 +1,7 @@
 # API Reference
 
 Auto-generated from docstrings. Every exported symbol is listed below.
+For narrative usage, see the [Guide](index.md#Guide) — this page is the symbol reference only.
 
 ## Connection
 
@@ -139,15 +140,7 @@ SurrealDB.SurrealValue
 SurrealDB.Relationship
 ```
 
-### Record-id forms
-
-Three ways to address a specific record:
-
-- `RecordID(table, id)` — programmatic; id may be any serializable Julia value (String, Int, Vector, Dict). Encoded as CBOR `Tag(8, [table, key])`; round-trips with full type fidelity.
-- `rid"table:id"` — string-macro shorthand for the literal case. Parses at compile time; rejects multi-colon strings and empty parts.
-- [`StringRecordID`](@ref) — opaque wrapper for the rare case where the id syntax needs the server's parser (escaped colons, ranges, nested objects). One-way send only; decode always materializes typed `RecordID`.
-
-Passing a plain `String` containing `:` to a record-op method raises `ArgumentError` — no silent reinterpretation as a table name.
+See [Record IDs](records.md) for the three id forms and the colon-string guard.
 
 ## Wire-format types
 
@@ -168,28 +161,7 @@ SurrealDB.GeometryMultiPolygon
 SurrealDB.GeometryCollection
 ```
 
-### NONE vs NULL
-
-SurrealDB distinguishes two no-value sentinels on the server:
-
-- `NONE` — field is unset / does not exist
-- `NULL` — field is explicitly set to null
-
-Julia is the one language across the official SurrealDB SDKs with a structural fit for both: the SDK maps `NONE → missing` and `NULL → nothing`. Peer SDKs (Python, Go, JS, .NET, Rust) all collapse both to a single sentinel; only Julia preserves the distinction.
-
-On read, expect either:
-
-```julia
-result = SurrealDB.query(client, "RETURN \$maybe_unset")
-isnothing(result[1]) || ismissing(result[1])   # NONE or NULL
-```
-
-On write, both Julia sentinels round-trip semantically:
-
-```julia
-SurrealDB.create(client, "tbl", Dict("x" => missing))   # → server stores NONE
-SurrealDB.create(client, "tbl", Dict("x" => nothing))   # → server stores NULL
-```
+See [Wire format](wire.md) for the CBOR / JSON contract and the NONE / NULL → `missing` / `nothing` mapping.
 
 ## Errors
 
