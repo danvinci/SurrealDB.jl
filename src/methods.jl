@@ -260,6 +260,21 @@ function query_one(client::SurrealClient{C}, sql::String;
     return tables[1]
 end
 
+# Thing-form guard. Plain `String` containing `:` is no longer auto-parsed
+# (post-s13 substrate refactor); silently treating it as a table name leaves
+# the server creating records under a literal `"table:id"` table. Reject at
+# the SDK boundary and steer the caller to one of the typed forms.
+function _check_thing(what::AbstractString)
+    ':' in what && throw(ArgumentError(
+        "ambiguous record-id form $(repr(String(what))): plain `String` " *
+        "containing ':' is not auto-parsed. Use one of:\n" *
+        "  RecordID(table, id)         # programmatic\n" *
+        "  rid\"table:id\"               # literal\n" *
+        "  StringRecordID(\"$(what)\")  # server-side parse"))
+    return nothing
+end
+_check_thing(_) = nothing
+
 """
     create(client, what, data::Dict{String, Any})
 
@@ -271,6 +286,7 @@ Create a new record in the table or with a specific ID.
 Returns the created record(s) as a Dict or Vector of Dicts.
 """
 function create(client::SurrealClient{C}, what, data) where {C<:AbstractConnection}
+    _check_thing(what)
     return _rpc_call(client, "create", Any[what, data])
 end
 
@@ -288,6 +304,7 @@ does not exist.
 See also: [`create`](@ref), [`update`](@ref), [`delete`](@ref).
 """
 function select(client::SurrealClient{C}, what) where {C<:AbstractConnection}
+    _check_thing(what)
     return _rpc_call(client, "select", Any[what])
 end
 
@@ -306,6 +323,7 @@ Returns the updated record(s).
 See also: [`merge`](@ref), [`upsert`](@ref), [`patch`](@ref).
 """
 function update(client::SurrealClient{C}, what, data) where {C<:AbstractConnection}
+    _check_thing(what)
     return _rpc_call(client, "update", Any[what, data])
 end
 
@@ -322,6 +340,7 @@ on SurrealDB v3 (returns `nothing`).
 See also: [`select`](@ref), [`create`](@ref).
 """
 function delete(client::SurrealClient{C}, what) where {C<:AbstractConnection}
+    _check_thing(what)
     return _rpc_call(client, "delete", Any[what])
 end
 
@@ -353,6 +372,7 @@ record may not create it on all SurrealDB versions.
 See also: [`update`](@ref), [`merge`](@ref).
 """
 function upsert(client::SurrealClient{C}, what, data) where {C<:AbstractConnection}
+    _check_thing(what)
     return _rpc_call(client, "upsert", Any[what, data])
 end
 
@@ -369,6 +389,7 @@ present in `data` overwrite existing fields; fields absent are preserved
 See also: [`update`](@ref), [`patch`](@ref).
 """
 function merge(client::SurrealClient{C}, what, data) where {C<:AbstractConnection}
+    _check_thing(what)
     return _rpc_call(client, "merge", Any[what, data])
 end
 
@@ -402,6 +423,7 @@ See also: [`insert_relation`](@ref), [`Relationship`](@ref).
 """
 function relate(client::SurrealClient{C}, from, edge, to;
                 data=nothing) where {C<:AbstractConnection}
+    _check_thing(from); _check_thing(edge); _check_thing(to)
     payload = isnothing(data) ? Dict{String, Any}() : data
     return _rpc_call(client, "relate", Any[from, edge, to, payload])
 end
@@ -447,6 +469,7 @@ SurrealDB.patch(db, "user:1", [
 ```
 """
 function patch(client::SurrealClient{C}, what, patches) where {C<:AbstractConnection}
+    _check_thing(what)
     return _rpc_call(client, "patch", Any[what, patches, true])
 end
 
