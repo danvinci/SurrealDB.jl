@@ -39,18 +39,6 @@ function _roundtrip(db, id::String, value)
     return row["v"]
 end
 
-# SurrealDB v2 rejects strings containing NUL bytes with "Parse error" at the
-# SurrealQL level (server-side limitation, fixed in v3). Detect once per
-# testset to gate the NUL-byte assertion.
-function _server_is_v2(db)
-    try
-        v = SurrealDB.version(db)
-        ver = v isa NamedTuple ? v.version : string(v)
-        return occursin(r"surrealdb-2\.", ver)
-    catch
-        return false
-    end
-end
 
 @testset "scalar types" begin
     db = _rt_client()
