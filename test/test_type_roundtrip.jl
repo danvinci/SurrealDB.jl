@@ -76,17 +76,11 @@ end
         @test _roundtrip(db, "str_unicode", "αβγ ✓ 中文 🦀") == "αβγ ✓ 中文 🦀"
         @test _roundtrip(db, "str_empty", "") == ""
 
-        # NUL bytes — JSON encoders sometimes drop these silently.
-        # v2 SurrealQL parser rejects NUL in strings (Parse error); v3 accepts.
+        # NUL bytes — JSON encoders sometimes drop these silently. Current
+        # v2 + v3 server builds both accept NUL through SurrealQL (older v2
+        # builds rejected at the parser; see git history if that regresses).
         nul_str = "before\0after"
-        if _server_is_v2(db)
-            # v2 rejects NUL at the SurrealQL parser; the specific error type
-            # varies by wire and server build (Validation/Query/Server). Any
-            # throw documents the rejection.
-            @test_throws Exception _roundtrip(db, "str_nul", nul_str)
-        else
-            @test _roundtrip(db, "str_nul", nul_str) == nul_str
-        end
+        @test _roundtrip(db, "str_nul", nul_str) == nul_str
     finally
         _rt_close(db)
     end
