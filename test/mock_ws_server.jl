@@ -232,6 +232,8 @@ function _reply(mock::Mock, ws, req::AbstractDict, proto::AbstractString)
         Any[Dict("status" => "OK", "time" => "0.1ms", "result" => Any[])]
     elseif method == "info"
         Dict{String, Any}()
+    elseif method == "version"
+        "surrealdb-2.0.0"
     else
         nothing
     end
