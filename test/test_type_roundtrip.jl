@@ -167,8 +167,12 @@ end
         got = SurrealDB.select(db, SurrealDB.RecordID(RT_TABLE, "dt_iso"))
         row = got isa AbstractVector ? first(got) : got
         @test haskey(row, "ts")
-        # Wire format returns ISO-8601 string; assert prefix-equal.
-        @test occursin(r"^2024-06-15", string(row["ts"]))
+        # CBOR returns a typed `SurrealDateTime`; 1718454645s = 2024-06-15T12:30:45Z.
+        ts = row["ts"]
+        @test ts isa SurrealDateTime || (ts isa AbstractString && occursin(r"^2024-06-15", ts))
+        if ts isa SurrealDateTime
+            @test ts.seconds == 1718454645
+        end
     finally
         _rt_close(db)
     end

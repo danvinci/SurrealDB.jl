@@ -82,6 +82,17 @@ SurrealDB.connect("ws://localhost:8000"; wire=:json)
 
 On JSON, typed values lower to canonical strings (`Decimal` → numeric string, `DateTime` → ISO 8601, `Geometry` → GeoJSON object, etc.).
 
+### NONE vs NULL
+
+SurrealDB distinguishes `NONE` (unset) from `NULL` (explicit null).
+Julia is the one peer SDK with the structural fit to preserve the distinction: `NONE → missing`, `NULL → nothing`.
+Other SDKs (Python, Go, JS, .NET, Rust) collapse both to a single sentinel.
+
+```julia
+result = SurrealDB.query(client, "RETURN \$maybe_unset")
+isnothing(result[1]) || ismissing(result[1])    # both no-value cases
+```
+
 ### Embedded mode
 
 Requires the `libsurreal` shared library.

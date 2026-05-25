@@ -51,9 +51,10 @@ end
     @test result[1] == "visible_only_here"
 
     # v2: other client cannot see variable (throws)
-    # v3: undefined vars are nil, no error
+    # v3: undefined vars surface as NONE (→ `missing`) or NULL (→ `nothing`)
+    # depending on server build — the SDK preserves the distinction.
     result2 = SurrealDB.query(client2, "RETURN \$isolated_test")
-    @test result2[1] === nothing || result2[1] isa Nothing
+    @test isnothing(result2[1]) || ismissing(result2[1])
 
     SurrealDB.unset!(client, "isolated_test")
     SurrealDB.close!(client2)

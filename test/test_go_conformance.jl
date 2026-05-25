@@ -11,6 +11,7 @@
 using SurrealDB
 using Test
 using Dates
+using UUIDs
 
 const _GO_TABLES = ("users", "persons", "knows", "person", "newuser")
 
@@ -181,16 +182,17 @@ end
         db = _go_client()
         try
             res = SurrealDB.query(db, "LIVE SELECT * FROM users")
-            # `LIVE SELECT` returns a UUID string in result[0].
+            # `LIVE SELECT` returns a query id — typed `UUID` post-s13 over CBOR,
+            # bare string over JSON.
             qid = if res isa AbstractVector && !isempty(res)
-                first(res) isa AbstractString ? first(res) : nothing
-            elseif res isa AbstractString
+                first(res) isa Union{AbstractString, UUIDs.UUID} ? first(res) : nothing
+            elseif res isa Union{AbstractString, UUIDs.UUID}
                 res
             else
                 nothing
             end
-            @test qid isa AbstractString
-            if qid isa AbstractString
+            @test qid isa Union{AbstractString, UUIDs.UUID}
+            if !isnothing(qid)
                 try; SurrealDB.kill!(db, qid); catch; end
             end
         finally

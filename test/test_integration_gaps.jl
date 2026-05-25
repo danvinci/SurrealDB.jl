@@ -165,9 +165,9 @@ end
     users = SurrealDB.query(client, TestUser, "SELECT * FROM test_port ORDER BY username")
     @test users isa Vector{TestUser}
     @test length(users) >= 2
-    # id is Any, stored as string (RecordID coercion applies when field type is RecordID)
-    @test users[1].id isa String
-    @test occursin(":", users[1].id)
+    # `id` arrives as typed `RecordID` post-s13 type fidelity (CBOR Tag(8)).
+    @test users[1].id isa RecordID
+    @test users[1].id.table == "test_port"
 
     SurrealDB.query(client, "DELETE FROM test_port")
     # Shared client, no per-test close
@@ -180,8 +180,7 @@ end
         Dict("username" => "eve", "password" => "555"))
     @test user isa TestUser
     @test user.username == "eve"
-    @test user.id isa String
-    @test occursin(":", user.id)
+    @test user.id == rid"test_port:irt"
 
     SurrealDB.query(client, "DELETE FROM test_port")
     # Shared client, no per-test close
@@ -210,7 +209,7 @@ end
 # 5. Transaction with RETURN and error handling (Go: query_transaction)
 # ================================================================
 @testset "Transaction begin/commit sequence" begin
-    SurrealDB.query(client, "DELETE FROM test_port WHERE id = rid\"test_port:tx1\"")
+    SurrealDB.query(client, "DELETE FROM test_port WHERE id = test_port:tx1")
     # Use raw SurrealQL for v3 transaction support
     results = SurrealDB.query(client, """
         BEGIN TRANSACTION;
@@ -240,7 +239,7 @@ end
         @test e isa SurrealDB.QueryError || true
     end
 
-    result = SurrealDB.query(client, "SELECT * FROM test_port WHERE id = rid\"test_port:cancel_me\"")
+    result = SurrealDB.query(client, "SELECT * FROM test_port WHERE id = test_port:cancel_me")
     # result is Any[Any[]] — one statement with empty result set
     @test isempty(result) || (length(result) == 1 && result[1] isa Vector && isempty(result[1]))
     clean!(client, "test_port")
