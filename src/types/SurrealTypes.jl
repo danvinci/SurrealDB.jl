@@ -18,6 +18,7 @@ using Dates
 using UUIDs
 
 export RecordID, StringRecordID, Table
+export @rid_str
 export SurrealDecimal, SurrealDateTime, SurrealDuration, SurrealFile
 export SurrealRange, BoundIncluded, BoundExcluded
 export GeometryPoint, GeometryLine, GeometryPolygon,
@@ -89,6 +90,30 @@ Base.string(s::StringRecordID) = s.value
 Base.show(io::IO, s::StringRecordID) = print(io, "StringRecordID(\"", s.value, "\")")
 Base.:(==)(a::StringRecordID, b::StringRecordID) = a.value == b.value
 Base.hash(s::StringRecordID, h::UInt) = hash(s.value, hash(:StringRecordID, h))
+
+"""
+    rid"table:id"
+
+String macro for `RecordID` literals. Parses at compile time. Requires
+exactly one `:` separator with both parts non-empty; complex ids (nested
+objects, ranges, escaped colons) should use `StringRecordID(...)` or the
+explicit `RecordID(table, id)` constructor.
+
+```julia
+rid"users:42"          # ≡ RecordID("users", "42")
+rid"posts:abc-123"     # ≡ RecordID("posts", "abc-123")
+```
+"""
+macro rid_str(s::String)
+    count(==(':'), s) == 1 || throw(ArgumentError(
+        "rid\"$s\": expected exactly one `:` separator; " *
+        "use `StringRecordID(\"$s\")` for complex ids " *
+        "or `RecordID(table, id)` for non-string ids"))
+    table, id = split(s, ":")
+    (!isempty(table) && !isempty(id)) || throw(ArgumentError(
+        "rid\"$s\": both `table` and `id` must be non-empty"))
+    return :(RecordID($table, $id))
+end
 
 # --- table ---
 
