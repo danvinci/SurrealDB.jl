@@ -29,8 +29,8 @@ end
 
 @testset "CRUD: create + select" begin
     db = _fresh_client()
-    SurrealDB.create(db, "user:alice", Dict{String,Any}("name" => "Alice", "value" => 42))
-    result = _one(SurrealDB.select(db, "user:alice"))
+    SurrealDB.create(db, rid"user:alice", Dict{String,Any}("name" => "Alice", "value" => 42))
+    result = _one(SurrealDB.select(db, rid"user:alice"))
     @test result isa AbstractDict
     @test result["name"] == "Alice"
     @test result["value"] == 42
@@ -39,9 +39,9 @@ end
 
 @testset "CRUD: update replaces record" begin
     db = _fresh_client()
-    SurrealDB.create(db, "user:bob", Dict{String,Any}("name" => "Bob", "value" => 1))
-    SurrealDB.update(db, "user:bob", Dict{String,Any}("name" => "Bobby", "value" => 2))
-    result = _one(SurrealDB.select(db, "user:bob"))
+    SurrealDB.create(db, rid"user:bob", Dict{String,Any}("name" => "Bob", "value" => 1))
+    SurrealDB.update(db, rid"user:bob", Dict{String,Any}("name" => "Bobby", "value" => 2))
+    result = _one(SurrealDB.select(db, rid"user:bob"))
     @test result["name"] == "Bobby"
     @test result["value"] == 2
     SurrealDB.close!(db)
@@ -49,9 +49,9 @@ end
 
 @testset "CRUD: merge preserves untouched fields" begin
     db = _fresh_client()
-    SurrealDB.create(db, "user:carol", Dict{String,Any}("name" => "Carol", "value" => 10))
-    SurrealDB.merge(db, "user:carol", Dict{String,Any}("value" => 99))
-    result = _one(SurrealDB.select(db, "user:carol"))
+    SurrealDB.create(db, rid"user:carol", Dict{String,Any}("name" => "Carol", "value" => 10))
+    SurrealDB.merge(db, rid"user:carol", Dict{String,Any}("value" => 99))
+    result = _one(SurrealDB.select(db, rid"user:carol"))
     @test result["name"] == "Carol"
     @test result["value"] == 99
     SurrealDB.close!(db)
@@ -59,9 +59,9 @@ end
 
 @testset "CRUD: delete" begin
     db = _fresh_client()
-    SurrealDB.create(db, "user:dave", Dict{String,Any}("name" => "Dave", "value" => 0))
-    SurrealDB.delete(db, "user:dave")
-    result = SurrealDB.select(db, "user:dave")
+    SurrealDB.create(db, rid"user:dave", Dict{String,Any}("name" => "Dave", "value" => 0))
+    SurrealDB.delete(db, rid"user:dave")
+    result = SurrealDB.select(db, rid"user:dave")
     empty = result === nothing || (result isa AbstractVector && isempty(result))
     @test empty
     SurrealDB.close!(db)
@@ -85,12 +85,12 @@ end
 @testset "CRUD: upsert" begin
     db = _fresh_client()
     # Upsert nonexistent creates
-    SurrealDB.upsert(db, "user:grace", Dict{String,Any}("name" => "Grace", "value" => 7))
-    r = _one(SurrealDB.select(db, "user:grace"))
+    SurrealDB.upsert(db, rid"user:grace", Dict{String,Any}("name" => "Grace", "value" => 7))
+    r = _one(SurrealDB.select(db, rid"user:grace"))
     @test r["name"] == "Grace"
     # Upsert existing replaces
-    SurrealDB.upsert(db, "user:grace", Dict{String,Any}("name" => "Grace G.", "value" => 8))
-    r2 = _one(SurrealDB.select(db, "user:grace"))
+    SurrealDB.upsert(db, rid"user:grace", Dict{String,Any}("name" => "Grace G.", "value" => 8))
+    r2 = _one(SurrealDB.select(db, rid"user:grace"))
     @test r2["name"] == "Grace G."
     @test r2["value"] == 8
     SurrealDB.close!(db)
@@ -98,9 +98,9 @@ end
 
 @testset "CRUD: relate" begin
     db = _fresh_client()
-    SurrealDB.create(db, "person:a", Dict{String,Any}("name" => "A"))
-    SurrealDB.create(db, "person:b", Dict{String,Any}("name" => "B"))
-    edge = SurrealDB.relate(db, "person:a", "knows", "person:b";
+    SurrealDB.create(db, rid"person:a", Dict{String,Any}("name" => "A"))
+    SurrealDB.create(db, rid"person:b", Dict{String,Any}("name" => "B"))
+    edge = SurrealDB.relate(db, rid"person:a", "knows", rid"person:b";
                              data=Dict{String,Any}("score" => 5))
     rec = _one(edge)
     @test rec isa AbstractDict
@@ -110,21 +110,21 @@ end
 
 @testset "patch: add / remove / replace" begin
     db = _fresh_client()
-    SurrealDB.create(db, "user:henry", Dict{String,Any}("name" => "Henry", "value" => 0))
+    SurrealDB.create(db, rid"user:henry", Dict{String,Any}("name" => "Henry", "value" => 0))
 
     # patch_replace
-    SurrealDB.patch_replace(db, "user:henry", "/value", 100)
-    r1 = _one(SurrealDB.select(db, "user:henry"))
+    SurrealDB.patch_replace(db, rid"user:henry", "/value", 100)
+    r1 = _one(SurrealDB.select(db, rid"user:henry"))
     @test r1["value"] == 100
 
     # patch_add: use a candidate-list key so _parse_sr_object can see it
-    SurrealDB.patch_add(db, "user:henry", "/description", "hello")
-    r2 = _one(SurrealDB.select(db, "user:henry"))
+    SurrealDB.patch_add(db, rid"user:henry", "/description", "hello")
+    r2 = _one(SurrealDB.select(db, rid"user:henry"))
     @test r2["description"] == "hello"
 
     # patch_remove
-    SurrealDB.patch_remove(db, "user:henry", "/description")
-    r3 = _one(SurrealDB.select(db, "user:henry"))
+    SurrealDB.patch_remove(db, rid"user:henry", "/description")
+    r3 = _one(SurrealDB.select(db, rid"user:henry"))
     @test !haskey(r3, "description")
 
     SurrealDB.close!(db)
@@ -145,9 +145,9 @@ end
 @testset "Transactions: commit" begin
     db = _fresh_client()
     SurrealDB.begin!(db)
-    SurrealDB.create(db, "user:ivan", Dict{String,Any}("name" => "Ivan", "value" => 1))
+    SurrealDB.create(db, rid"user:ivan", Dict{String,Any}("name" => "Ivan", "value" => 1))
     SurrealDB.commit!(db)
-    r = _one(SurrealDB.select(db, "user:ivan"))
+    r = _one(SurrealDB.select(db, rid"user:ivan"))
     @test r isa AbstractDict
     @test r["name"] == "Ivan"
     SurrealDB.close!(db)
@@ -156,9 +156,9 @@ end
 @testset "Transactions: cancel" begin
     db = _fresh_client()
     SurrealDB.begin!(db)
-    SurrealDB.create(db, "user:judy", Dict{String,Any}("name" => "Judy", "value" => 1))
+    SurrealDB.create(db, rid"user:judy", Dict{String,Any}("name" => "Judy", "value" => 1))
     SurrealDB.cancel!(db)
-    result = SurrealDB.select(db, "user:judy")
+    result = SurrealDB.select(db, rid"user:judy")
     persisted = result isa AbstractVector && !isempty(result)
     # Upstream limitation, not an SDK bug: `sr_cancel` in libsurreal_c does
     # NOT roll back writes — the SDK issues the call correctly and the C
@@ -182,7 +182,7 @@ end
 @testset "Live: subscribe / kill!" begin
     db = _fresh_client()
     # sr_select_live requires the table to exist first
-    SurrealDB.create(db, "events:seed", Dict{String,Any}("data" => "init"))
+    SurrealDB.create(db, rid"events:seed", Dict{String,Any}("data" => "init"))
     sub = SurrealDB.live(db, "events")
     @test sub isa SurrealDB.LiveSubscription
     @test sub.active == true

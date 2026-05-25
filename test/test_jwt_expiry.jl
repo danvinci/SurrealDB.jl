@@ -37,7 +37,7 @@ using Test
                     SIGNIN (SELECT * FROM jwt_user WHERE name = \$user)
                     DURATION FOR SESSION 1s
             """)
-            SurrealDB.create(admin, "jwt_user:alice", Dict("name" => "alice"))
+            SurrealDB.create(admin, rid"jwt_user:alice", Dict("name" => "alice"))
 
             # Sign in under the short-lived access. We get a JWT bound to
             # the 1s session.

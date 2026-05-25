@@ -95,7 +95,7 @@ end
     end
     db = SurrealDB.connect("mem://")
     SurrealDB.use!(db, "test", "test")
-    SurrealDB.create(db, "rc_events:__init", Dict("name" => "init"))
+    SurrealDB.create(db, rid"rc_events:__init", Dict("name" => "init"))
     sub = SurrealDB.live(db, "rc_events")
     @test haskey(db.connection.live_handles, sub.query_id)
     @test db.connection.live_handles[sub.query_id] === sub
@@ -116,7 +116,7 @@ end
     end
     db = SurrealDB.connect("mem://")
     SurrealDB.use!(db, "test", "test")
-    SurrealDB.create(db, "rc_kill:__init", Dict("name" => "init"))
+    SurrealDB.create(db, rid"rc_kill:__init", Dict("name" => "init"))
     sub = SurrealDB.live(db, "rc_kill")
     qid = sub.query_id
     # On embedded the kill RPC may fail but state teardown happens FIRST per R5 fix.

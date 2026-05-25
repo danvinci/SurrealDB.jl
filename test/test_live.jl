@@ -18,7 +18,7 @@ end
 # Bootstrap: create tables for live queries (v3 requires existing tables)
 for tbl in ["test_live", "test_live_notif", "test_live_upd", "test_live_del", "test_live_a", "test_live_b", "test_live_dc"]
     println(stderr, "[bootstrap] create $tbl"); flush(stderr)
-    try SurrealDB.create(client, tbl * ":__init", Dict("_init" => true)); catch; end
+    try SurrealDB.create(client, RecordID(tbl, "__init"), Dict("_init" => true)); catch; end
     println(stderr, "[bootstrap] done $tbl"); flush(stderr)
 end
 
@@ -60,7 +60,7 @@ end
     @test sub.active
     @async begin
         sleep(0.3)
-        SurrealDB.create(client, "test_live_notif", Dict("event" => "lived"))
+        SurrealDB.create(client, rid"test_live_notif:event", Dict("event" => "lived"))
     end
     println(stderr, "[notif-create] awaiting notification..."); flush(stderr)
     notif = _await_notification(sub.channel)
@@ -74,11 +74,11 @@ end
 
 @testset "Live notification on update" begin
     clean_table!(client, "test_live_upd")
-    SurrealDB.create(client, "test_live_upd:watch", Dict("val" => 1))
+    SurrealDB.create(client, rid"test_live_upd:watch", Dict("val" => 1))
     sub = SurrealDB.live(client, "test_live_upd")
     @async begin
         sleep(0.3)
-        SurrealDB.update(client, "test_live_upd:watch", Dict("val" => 2))
+        SurrealDB.update(client, rid"test_live_upd:watch", Dict("val" => 2))
     end
     notif = _await_notification(sub.channel)
     @test notif !== nothing
@@ -89,11 +89,11 @@ end
 
 @testset "Live notification on delete" begin
     clean_table!(client, "test_live_del")
-    SurrealDB.create(client, "test_live_del:bye", Dict("x" => 1))
+    SurrealDB.create(client, rid"test_live_del:bye", Dict("x" => 1))
     sub = SurrealDB.live(client, "test_live_del")
     @async begin
         sleep(0.3)
-        SurrealDB.delete(client, "test_live_del:bye")
+        SurrealDB.delete(client, rid"test_live_del:bye")
     end
     notif = _await_notification(sub.channel)
     @test notif !== nothing

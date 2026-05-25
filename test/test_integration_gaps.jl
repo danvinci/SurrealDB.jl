@@ -36,7 +36,7 @@ SurrealDB.use!(client, TEST_NS, TEST_DB)
 SurrealDB.signin!(client, SurrealDB.RootAuth("root", "root"))
 
 # Bootstrap: create a test table (SurrealDB v3 requires explicit tables)
-try SurrealDB.create(client, "test_port:__init", Dict("_init" => true)); catch; end
+try SurrealDB.create(client, rid"test_port:__init", Dict("_init" => true)); catch; end
 try SurrealDB.query(client, "DEFINE TABLE test_edge TYPE ANY SCHEMALESS"); catch; end
 
 # ================================================================
@@ -67,21 +67,21 @@ end
 @testset "Concurrent creates and selects" begin
     n = 50
     table = "test_conc"
-    try SurrealDB.create(client, table * ":__init", Dict("_init" => true)); catch; end
+    try SurrealDB.create(client, rid"test_conc:__init", Dict("_init" => true)); catch; end
 
-    ids = String[]
+    ids = RecordID[]
     lk = ReentrantLock()
     errors = Exception[]
 
     # Concurrent creates
     tasks = Any[]
     for i in 1:n
-        rid = table * ":c" * string(i)
+        rid_str = RecordID(table, "c" * string(i))
         push!(tasks, @async begin
             try
-                SurrealDB.create(client, rid, Dict("val" => i))
+                SurrealDB.create(client, rid_str, Dict("val" => i))
                 lock(lk) do
-                    push!(ids, rid)
+                    push!(ids, rid_str)
                 end
             catch e
                 lock(lk) do
@@ -98,10 +98,10 @@ end
     # Concurrent selects
     select_tasks = Any[]
     for i in 1:n
-        rid = table * ":c" * string(i)
+        rid_str = RecordID(table, "c" * string(i))
         push!(select_tasks, @async begin
             try
-                row = SurrealDB.select(client, rid)
+                row = SurrealDB.select(client, rid_str)
                 if row isa AbstractDict
                     v = get(row, "val", nothing)
                     if v isa Integer; @test v in 1:n; end
@@ -121,10 +121,10 @@ end
 @testset "Typed create with StructTypes" begin
     # Shared client already initialized
     try SurrealDB.query(client, "DELETE FROM test_port"); catch; end
-    try SurrealDB.create(client, "test_port:__init", Dict("_init" => true)); catch; end
+    try SurrealDB.create(client, rid"test_port:__init", Dict("_init" => true)); catch; end
 
     # Typed create with raw data
-    user = SurrealDB.create(client, TestUser, "test_port:typed",
+    user = SurrealDB.create(client, TestUser, rid"test_port:typed",
         Dict("username" => "alice", "password" => "secret"))
     @test user isa TestUser
     @test user.username == "alice"
@@ -137,11 +137,11 @@ end
 @testset "Typed select with StructTypes" begin
     # Shared client already initialized
 
-    SurrealDB.create(client, "test_port:typed_select",
+    SurrealDB.create(client, rid"test_port:typed_select",
         Dict("username" => "bob", "password" => "pwd"))
 
     # Select single record as typed
-    user = SurrealDB.select(client, TestUser, "test_port:typed_select")
+    user = SurrealDB.select(client, TestUser, rid"test_port:typed_select")
     @test user isa TestUser
     @test user.username == "bob"
     @test user.password == "pwd"
@@ -176,7 +176,7 @@ end
 @testset "Typed insert with StructTypes" begin
     # Shared client already initialized
 
-    user = SurrealDB.create(client, TestUser, "test_port:irt",
+    user = SurrealDB.create(client, TestUser, rid"test_port:irt",
         Dict("username" => "eve", "password" => "555"))
     @test user isa TestUser
     @test user.username == "eve"
@@ -193,10 +193,10 @@ end
 @testset "Select by RecordID struct" begin
     # Shared client already initialized
 
-    rid = SurrealDB.RecordID("test_port", "by_rid")
-    SurrealDB.create(client, rid, Dict("username" => "frank"))
+    rid_obj = SurrealDB.RecordID("test_port", "by_rid")
+    SurrealDB.create(client, rid_obj, Dict("username" => "frank"))
 
-    user = SurrealDB.select(client, rid)
+    user = SurrealDB.select(client, rid_obj)
     @test user isa AbstractDict
     @test get(user, "username", nothing) == "frank"
 
@@ -210,7 +210,7 @@ end
 # 5. Transaction with RETURN and error handling (Go: query_transaction)
 # ================================================================
 @testset "Transaction begin/commit sequence" begin
-    SurrealDB.query(client, "DELETE FROM test_port WHERE id = test_port:tx1")
+    SurrealDB.query(client, "DELETE FROM test_port WHERE id = rid\"test_port:tx1\"")
     # Use raw SurrealQL for v3 transaction support
     results = SurrealDB.query(client, """
         BEGIN TRANSACTION;
@@ -221,7 +221,7 @@ end
     # The semantic check is the SELECT below; the length here just asserts non-empty.
     @test length(results) >= 1
 
-    result = SurrealDB.select(client, "test_port:tx1")
+    result = SurrealDB.select(client, rid"test_port:tx1")
     @test result isa AbstractDict
     @test get(result, "val", nothing) == "committed_data"
     clean!(client, "test_port")
@@ -240,7 +240,7 @@ end
         @test e isa SurrealDB.QueryError || true
     end
 
-    result = SurrealDB.query(client, "SELECT * FROM test_port WHERE id = test_port:cancel_me")
+    result = SurrealDB.query(client, "SELECT * FROM test_port WHERE id = rid\"test_port:cancel_me\"")
     # result is Any[Any[]] — one statement with empty result set
     @test isempty(result) || (length(result) == 1 && result[1] isa Vector && isempty(result[1]))
     clean!(client, "test_port")
@@ -258,7 +258,7 @@ end
     # v2 collapses multi-stmt transactions into 1 row; v3 returns per-statement.
     @test length(result) >= 1
 
-    rows = SurrealDB.select(client, "test_port:tx_ret")
+    rows = SurrealDB.select(client, rid"test_port:tx_ret")
     @test rows isa AbstractDict
     @test get(rows, "val", nothing) == "returned"
 
@@ -273,11 +273,11 @@ end
     # Shared client already initialized
 
     # Untyped select for nonexistent
-    result = SurrealDB.select(client, "test_port:does_not_exist_12345")
+    result = SurrealDB.select(client, rid"test_port:does_not_exist_12345")
     @test (result isa Vector && isempty(result)) || result isa Nothing || true
 
     # Typed select for nonexistent — should not throw
-    user = SurrealDB.select(client, TestUser, "test_port:never_created")
+    user = SurrealDB.select(client, TestUser, rid"test_port:never_created")
     @test true  # no error thrown
 
     # Shared client, no per-test close
@@ -289,11 +289,11 @@ end
 @testset "Merge preserves fields" begin
     # Shared client already initialized
 
-    SurrealDB.create(client, "test_port:merge_test",
+    SurrealDB.create(client, rid"test_port:merge_test",
         Dict("username" => "merge_user", "password" => "orig", "email" => "u@x.com"))
-    SurrealDB.merge(client, "test_port:merge_test", Dict("password" => "newpwd"))
+    SurrealDB.merge(client, rid"test_port:merge_test", Dict("password" => "newpwd"))
 
-    result = SurrealDB.select(client, "test_port:merge_test")
+    result = SurrealDB.select(client, rid"test_port:merge_test")
     @test get(result, "username", nothing) == "merge_user"  # preserved
     @test get(result, "password", nothing) == "newpwd"       # updated
     @test get(result, "email", nothing) == "u@x.com"         # preserved
