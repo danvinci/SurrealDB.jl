@@ -15,7 +15,9 @@
     @test !isempty(token)
 
     info = SurrealDB.info(client)
-    @test (info isa AbstractDict) || info === nothing
+    # Root user has no user record → server returns NONE → decodes to `missing`;
+    # auth'd as a user → Dict; never-bound session → nothing.
+    @test (info isa AbstractDict) || isnothing(info) || ismissing(info)
 
     ver = SurrealDB.version(client)
     @test ver.version isa String
