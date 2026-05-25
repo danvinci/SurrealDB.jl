@@ -10,7 +10,8 @@ clean_table!(client, "test_crud")
     result2 = SurrealDB.create(client, rid"test_crud:explicit_id",
                                 Dict("key" => "val"))
     @test result2 isa AbstractDict
-    @test result2["id"] == rid"test_crud:explicit_id"
+    # CBOR returns typed `RecordID`; JSON returns the string form.
+    @test string(result2["id"]) == "test_crud:explicit_id"
 end
 
 @testset "Select" begin
