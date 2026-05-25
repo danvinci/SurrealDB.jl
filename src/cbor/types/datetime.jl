@@ -6,8 +6,6 @@
 #   TAG_SPEC_DATETIME   (0)  — RFC 3339 text. Decode-only.
 #                              Ref: convert.rs:68-74.
 
-# Type definition + Base.* overloads live in ../types/SurrealTypes.jl.
-
 # Unix epoch baseline for RFC 3339 decode. SurrealTypes carries its own
 # copy for the constructor path; we keep a local const so the decoder
 # doesn't need to reach into the sibling module's internals.

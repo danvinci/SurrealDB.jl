@@ -7,8 +7,6 @@
 # materializes typed `RecordID`, never `StringRecordID`. Mirrors
 # `StringRecordId` in surrealdb.js / surrealdb.net.
 
-# Type definition + Base.* overloads live in ../types/SurrealTypes.jl.
-
 function encode(io::IO, s::StringRecordID)
     n = write_head(io, MAJOR_TAG, TAG_RECORDID)
     return n + encode(io, s.value)

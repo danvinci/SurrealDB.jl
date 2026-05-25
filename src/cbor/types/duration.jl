@@ -7,8 +7,6 @@
 #   TAG_STRING_DURATION (13) — SurrealQL duration text (e.g. `"1h30m"`).
 #                              Decode-only. Ref: convert.rs:124-130.
 
-# Type definition + Base.* overloads live in ../types/SurrealTypes.jl.
-
 # Encode: server-canonical compact form (convert.rs:384-391).
 function encode(io::IO, d::SurrealDuration)
     n = write_head(io, MAJOR_TAG, TAG_CUSTOM_DURATION)

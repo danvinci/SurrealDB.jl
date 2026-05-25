@@ -3,8 +3,6 @@
 # Wire shape: `Tag(55, [bucket_text, key_text])`. Ref convert.rs:337-352
 # (decode), 437-443 (encode).
 
-# Type definition + Base.* overloads live in ../types/SurrealTypes.jl.
-
 function encode(io::IO, f::SurrealFile)
     n = write_head(io, MAJOR_TAG, TAG_FILE)
     return n + encode(io, Any[f.bucket, f.key])

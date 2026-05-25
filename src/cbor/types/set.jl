@@ -11,8 +11,6 @@
 # Wraps Julia's `Set` — no custom type. Decoded as `Set{Any}` since
 # wire payloads may carry mixed element types.
 
-# --- CBOR encode ---
-
 function encode(io::IO, s::AbstractSet)
     # Pre-encode each element so we can sort deterministically by
     # encoded bytes, then concatenate.

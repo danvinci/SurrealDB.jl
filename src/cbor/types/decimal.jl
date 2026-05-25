@@ -4,8 +4,6 @@
 # emits / accepts the canonical string form. Ref: convert.rs:116-122
 # (decode), 375-377 (encode).
 
-# Type definition + Base.* overloads live in ../types/SurrealTypes.jl.
-
 function encode(io::IO, d::SurrealDecimal)
     n = write_head(io, MAJOR_TAG, TAG_STRING_DECIMAL)
     return n + encode(io, d.value)

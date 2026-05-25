@@ -2,8 +2,6 @@
 #
 # Wire shape: `Tag(7, text)`. Ref: convert.rs:188 (decode), 413-415 (encode).
 
-# Type definition + Base.* overloads live in ../types/SurrealTypes.jl.
-
 function encode(io::IO, t::Table)
     n = write_head(io, MAJOR_TAG, TAG_TABLE)
     return n + encode(io, t.name)

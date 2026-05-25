@@ -5,9 +5,6 @@
 # Server also accepts text form `Tag(8, "table:id")` on decode.
 # Ref: convert.rs:157-186 (decode), convert.rs:416-434 (encode).
 
-# Type definition + Base.* overloads live in ../types/SurrealTypes.jl;
-# this file owns the CBOR wire encoding only.
-
 # Encode: always emit server-canonical array form. Inner `id` recurses
 # through L2 dispatch — Integer/String/Vector/Dict work today; UUID and
 # Range will work once their tag handlers land.

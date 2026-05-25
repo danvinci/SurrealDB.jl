@@ -9,8 +9,6 @@
 # (unbounded). Bound payloads can themselves be ranges (range-of-range
 # legal). Refs: convert.rs:193, 511-542 (range), 514-518 (bound markers).
 
-# Type definitions + Base.* overloads live in ../types/SurrealTypes.jl.
-
 function encode(io::IO, b::BoundIncluded)
     n = write_head(io, MAJOR_TAG, TAG_BOUND_INCLUDED)
     return n + encode(io, b.value)

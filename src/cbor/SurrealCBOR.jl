@@ -1,9 +1,9 @@
 # SurrealCBOR — SurrealDB-flavored CBOR (RFC 8949) codec.
 #
 # Internal submodule of SurrealDB.jl. Stdlib only, plus sibling SurrealTypes
-# for wire-format type definitions. No deps on transport / methods /
-# connection layers — extraction path: SurrealTypes + SurrealCBOR as two
-# packages, CBOR depending on Types.
+# for wire-format type definitions. Module-scoped isolation keeps the codec
+# free of transport / methods / connection coupling — Aqua's piracy check
+# enforces the boundary.
 #
 # Layers (see _notes/_projects/_surrealdb/design-cbor-transport.md):
 #   L1  io.jl       — RFC 8949 §3 head bytes (this module)
@@ -12,8 +12,8 @@
 
 module SurrealCBOR
 
-# Stdlib only. Adding any non-stdlib dep here breaks the extraction path
-# documented in the design doc; enforce via Aqua at the SurrealDB level.
+# Stdlib only. Keeps the codec substrate-isolated from SDK upper layers;
+# Aqua piracy check at the SurrealDB level enforces this discipline.
 
 using UUIDs
 using Dates

@@ -15,8 +15,6 @@
 #   Tag(93) MultiPolygon — array of Tag(90)
 #   Tag(94) Collection   — array of any Geometry tag
 
-# Type definitions + Base.* overloads live in ../types/SurrealTypes.jl.
-
 const _AnyGeometry = Union{GeometryPoint, GeometryLine, GeometryPolygon,
                            GeometryMultiPoint, GeometryMultiLine,
                            GeometryMultiPolygon, GeometryCollection}
