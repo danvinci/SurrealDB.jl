@@ -96,6 +96,9 @@ end
     _section("Closed lifecycle") do
         @testset "Closed lifecycle" begin include("test_closed.jl") end
     end
+    _section("ExplicitImports") do
+        @testset "ExplicitImports" begin include("test_explicit_imports.jl") end
+    end
     _section("Reconnect") do
         @testset "Reconnect" begin include("test_reconnect.jl") end
     end
