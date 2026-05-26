@@ -131,39 +131,68 @@ function SurrealDB._rpc_call(client::SurrealDB.SurrealClient{<:EmbeddedConnectio
     return SurrealDB._embedded_rpc_call(client.connection, method, params)
 end
 
+# Embedded RPC dispatch. Most arms are mechanical: method name → sr_* function
+# with one of four argument shapes. Shapes:
+#   :handle_only            — sr_fn(handle)
+#   :passthrough            — sr_fn(handle, params...)
+#   :coerce_first           — sr_fn(handle, string(params[1]))
+#   :coerce_first_with_rest — sr_fn(handle, string(params[1]), params[2:end]...)
+#
+# Adding a new mechanical RPC: one line in the table. Special-case arms with
+# genuine per-method logic (query / relate / patch / live / kill / signin /
+# signup / let) stay as branches below the table dispatch.
+const _RPC_ARMS = Dict{String, Tuple{Function, Symbol}}(
+    "create"          => (LibSurreal.sr_create,          :coerce_first_with_rest),
+    "select"          => (LibSurreal.sr_select,          :coerce_first),
+    "update"          => (LibSurreal.sr_update,          :coerce_first_with_rest),
+    "delete"          => (LibSurreal.sr_delete,          :coerce_first),
+    "insert"          => (LibSurreal.sr_insert,          :coerce_first_with_rest),
+    "upsert"          => (LibSurreal.sr_upsert,          :coerce_first_with_rest),
+    "merge"           => (LibSurreal.sr_merge,           :coerce_first_with_rest),
+    "insert_relation" => (LibSurreal.sr_insert_relation, :coerce_first_with_rest),
+    "authenticate"    => (LibSurreal.sr_authenticate,    :coerce_first),
+    "unset"           => (LibSurreal.sr_unset,           :coerce_first),
+    "invalidate"      => (LibSurreal.sr_invalidate,      :handle_only),
+    "begin"           => (LibSurreal.sr_begin,           :handle_only),
+    "commit"          => (LibSurreal.sr_commit,          :handle_only),
+    "cancel"          => (LibSurreal.sr_cancel,          :handle_only),
+    "version"         => (LibSurreal.sr_version,         :handle_only),
+    "health"          => (LibSurreal.sr_health,          :handle_only),
+    "export"          => (LibSurreal.sr_export_db,       :passthrough),
+    "import"          => (LibSurreal.sr_import_db,       :passthrough),
+)
+
+function _dispatch_rpc_arm(arm::Tuple{Function, Symbol}, conn::EmbeddedConnection, params)
+    fn, shape = arm
+    shape === :handle_only            && return fn(conn.handle)
+    shape === :passthrough            && return fn(conn.handle, params...)
+    shape === :coerce_first           && return fn(conn.handle, string(params[1]))
+    shape === :coerce_first_with_rest && return fn(conn.handle, string(params[1]), params[2:end]...)
+    throw(ConnectionError("Unknown embedded RPC arg shape: $shape"))
+end
+
 function SurrealDB._embedded_rpc_call(conn::EmbeddedConnection, method::String, params::Vector{Any})
     # Substrate boundary: the C FFI ccalls want raw strings for resource
     # identifiers; coerce typed RecordID / Table here via Base.string so
     # methods.jl can pass typed values through unmodified for the CBOR wire
     # path (system-design-principles.md § Boundary discipline).
     # Locking is done inside each sr_* call in libsurreal.jl
+
+    arm = get(_RPC_ARMS, method, nothing)
+    isnothing(arm) || return _dispatch_rpc_arm(arm, conn, params)
+
+    # Special-case arms — each has per-method logic beyond uniform sr_* dispatch.
     if method == "query"
         sql = params[1]
         vars = length(params) > 1 ? params[2] : Dict{String, Any}()
         return LibSurreal.sr_query(conn.handle, sql, vars)
-    elseif method == "create"
-        return LibSurreal.sr_create(conn.handle, string(params[1]), params[2:end]...)
-    elseif method == "select"
-        return LibSurreal.sr_select(conn.handle, string(params[1]))
-    elseif method == "update"
-        return LibSurreal.sr_update(conn.handle, string(params[1]), params[2:end]...)
-    elseif method == "delete"
-        return LibSurreal.sr_delete(conn.handle, string(params[1]))
-    elseif method == "insert"
-        return LibSurreal.sr_insert(conn.handle, string(params[1]), params[2:end]...)
-    elseif method == "upsert"
-        return LibSurreal.sr_upsert(conn.handle, string(params[1]), params[2:end]...)
-    elseif method == "merge"
-        return LibSurreal.sr_merge(conn.handle, string(params[1]), params[2:end]...)
     elseif method == "relate"
-        # relate: (from, edge, to, [data])
+        # (from, edge, to, [data]) — three string-coerced positional args.
         return LibSurreal.sr_relate(conn.handle,
                                     string(params[1]),
                                     string(params[2]),
                                     string(params[3]),
                                     params[4:end]...)
-    elseif method == "insert_relation"
-        return LibSurreal.sr_insert_relation(conn.handle, string(params[1]), params[2:end]...)
     elseif method == "patch"
         # params = [resource, patches::Vector{Dict}, diff_flag]
         # Each patch is {"op" => "add"|"remove"|"replace", "path" => p, "value" => v}.
@@ -199,14 +228,6 @@ function SurrealDB._embedded_rpc_call(conn::EmbeddedConnection, method::String, 
             delete!(conn.live_streams, query_id)
         end
         return LibSurreal.sr_kill(conn.handle, query_id)
-    elseif method == "version"
-        return LibSurreal.sr_version(conn.handle)
-    elseif method == "health"
-        return LibSurreal.sr_health(conn.handle)
-    elseif method == "export"
-        return LibSurreal.sr_export_db(conn.handle, params...)
-    elseif method == "import"
-        return LibSurreal.sr_import_db(conn.handle, params...)
     elseif method == "signin"
         p = params[1]
         if p isa AbstractDict
@@ -230,20 +251,9 @@ function SurrealDB._embedded_rpc_call(conn::EmbeddedConnection, method::String, 
         else
             return LibSurreal.sr_signup(conn.handle, :RECORD, string(p), "", "", "", "")
         end
-    elseif method == "authenticate"
-        return LibSurreal.sr_authenticate(conn.handle, string(params[1]))
-    elseif method == "invalidate"
-        return LibSurreal.sr_invalidate(conn.handle)
     elseif method == "let"
+        # sr_set's second arg is positional, not variadic — pass explicit nothing.
         return LibSurreal.sr_set(conn.handle, string(params[1]), length(params) > 1 ? params[2] : nothing)
-    elseif method == "unset"
-        return LibSurreal.sr_unset(conn.handle, string(params[1]))
-    elseif method == "begin"
-        return LibSurreal.sr_begin(conn.handle)
-    elseif method == "commit"
-        return LibSurreal.sr_commit(conn.handle)
-    elseif method == "cancel"
-        return LibSurreal.sr_cancel(conn.handle)
     else
         throw(ConnectionError("Unsupported embedded method: $method"))
     end
