@@ -154,8 +154,8 @@ end
 
 @testset "wire: type fidelity — RecordID + Table through both wires" begin
     # Regression guard for the s12-s13 transition: methods.jl no longer
-    # pre-stringifies typed values via `_to_string`. JSON wire must still
-    # produce the canonical `"user:alice"` shape (via JSON.lower); CBOR
+    # pre-stringifies typed values at the application layer. JSON wire must
+    # still produce the canonical `"user:alice"` shape (via JSON.lower); CBOR
     # must preserve the type as Tag(8, [table, key]) / Tag(7, name).
     r = SurrealDB.RecordID("user", "alice")
     t = SurrealDB.Table("user")

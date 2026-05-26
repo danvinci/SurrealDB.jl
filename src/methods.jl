@@ -526,10 +526,6 @@ end
 
 # --- Internal helpers ---
 
-_to_string(x::String) = x
-_to_string(x::Table) = x.name
-_to_string(x::RecordID) = string(x)
-
 function _parse_query_results(raw)::Vector{_QueryResult}
     results = _QueryResult[]
     if raw isa AbstractVector

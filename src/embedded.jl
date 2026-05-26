@@ -133,38 +133,37 @@ end
 
 function SurrealDB._embedded_rpc_call(conn::EmbeddedConnection, method::String, params::Vector{Any})
     # Substrate boundary: the C FFI ccalls want raw strings for resource
-    # identifiers; coerce typed RecordID / Table here so methods.jl can pass
-    # typed values through unmodified for the CBOR wire path (architecture.md
-    # § Boundary discipline). `_to_string` accepts String / Table / RecordID
-    # and is a no-op on String.
+    # identifiers; coerce typed RecordID / Table here via Base.string so
+    # methods.jl can pass typed values through unmodified for the CBOR wire
+    # path (system-design-principles.md § Boundary discipline).
     # Locking is done inside each sr_* call in libsurreal.jl
     if method == "query"
         sql = params[1]
         vars = length(params) > 1 ? params[2] : Dict{String, Any}()
         return LibSurreal.sr_query(conn.handle, sql, vars)
     elseif method == "create"
-        return LibSurreal.sr_create(conn.handle, _to_string(params[1]), params[2:end]...)
+        return LibSurreal.sr_create(conn.handle, string(params[1]), params[2:end]...)
     elseif method == "select"
-        return LibSurreal.sr_select(conn.handle, _to_string(params[1]))
+        return LibSurreal.sr_select(conn.handle, string(params[1]))
     elseif method == "update"
-        return LibSurreal.sr_update(conn.handle, _to_string(params[1]), params[2:end]...)
+        return LibSurreal.sr_update(conn.handle, string(params[1]), params[2:end]...)
     elseif method == "delete"
-        return LibSurreal.sr_delete(conn.handle, _to_string(params[1]))
+        return LibSurreal.sr_delete(conn.handle, string(params[1]))
     elseif method == "insert"
-        return LibSurreal.sr_insert(conn.handle, _to_string(params[1]), params[2:end]...)
+        return LibSurreal.sr_insert(conn.handle, string(params[1]), params[2:end]...)
     elseif method == "upsert"
-        return LibSurreal.sr_upsert(conn.handle, _to_string(params[1]), params[2:end]...)
+        return LibSurreal.sr_upsert(conn.handle, string(params[1]), params[2:end]...)
     elseif method == "merge"
-        return LibSurreal.sr_merge(conn.handle, _to_string(params[1]), params[2:end]...)
+        return LibSurreal.sr_merge(conn.handle, string(params[1]), params[2:end]...)
     elseif method == "relate"
         # relate: (from, edge, to, [data])
         return LibSurreal.sr_relate(conn.handle,
-                                    _to_string(params[1]),
-                                    _to_string(params[2]),
-                                    _to_string(params[3]),
+                                    string(params[1]),
+                                    string(params[2]),
+                                    string(params[3]),
                                     params[4:end]...)
     elseif method == "insert_relation"
-        return LibSurreal.sr_insert_relation(conn.handle, _to_string(params[1]), params[2:end]...)
+        return LibSurreal.sr_insert_relation(conn.handle, string(params[1]), params[2:end]...)
     elseif method == "patch"
         # params = [resource, patches::Vector{Dict}, diff_flag]
         # Each patch is {"op" => "add"|"remove"|"replace", "path" => p, "value" => v}.
@@ -187,7 +186,7 @@ function SurrealDB._embedded_rpc_call(conn::EmbeddedConnection, method::String, 
         end
         return last_result
     elseif method == "live"
-        resource = _to_string(params[1])
+        resource = string(params[1])
         diff = length(params) > 1 ? params[2] : false
         stream = LibSurreal.sr_select_live(conn.handle, resource)
         key = string(stream)

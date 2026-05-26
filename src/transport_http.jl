@@ -80,41 +80,41 @@ function _http_adapt_method(method::String, params::Vector{Any}, prefix::String)
         vars = length(params) > 1 ? params[2] : Dict{String, Any}()
         return "query", Any[prefix * sql, vars]
     elseif method == "select"
-        what = _to_string(params[1])
+        what = string(params[1])
         return "query", Any[prefix * "SELECT * FROM $what", Dict{String, Any}()]
     elseif method == "create"
-        what = _to_string(params[1])
+        what = string(params[1])
         data = length(params) > 1 ? params[2] : Dict{String, Any}()
         return "query", Any[prefix * "CREATE $what CONTENT \$data", Dict("data" => data)]
     elseif method == "update"
-        what = _to_string(params[1])
+        what = string(params[1])
         data = length(params) > 1 ? params[2] : Dict{String, Any}()
         return "query", Any[prefix * "UPDATE $what MERGE \$data", Dict("data" => data)]
     elseif method == "delete"
-        what = _to_string(params[1])
+        what = string(params[1])
         return "query", Any[prefix * "DELETE FROM $what", Dict{String, Any}()]
     elseif method == "insert"
-        table = _to_string(params[1])
+        table = string(params[1])
         data = length(params) > 1 ? params[2] : Dict{String, Any}()
         return "query", Any[prefix * "INSERT INTO $table \$data", Dict("data" => data)]
     elseif method == "upsert"
-        what = _to_string(params[1])
+        what = string(params[1])
         data = length(params) > 1 ? params[2] : Dict{String, Any}()
         return "query", Any[prefix * "UPSERT $what CONTENT \$data", Dict("data" => data)]
     elseif method == "merge"
-        what = _to_string(params[1])
+        what = string(params[1])
         data = length(params) > 1 ? params[2] : Dict{String, Any}()
         return "query", Any[prefix * "UPDATE $what MERGE \$data", Dict("data" => data)]
     elseif method == "relate"
-        rel_in = _to_string(params[1])
-        relation = _to_string(params[2])
-        rel_out = _to_string(params[3])
+        rel_in = string(params[1])
+        relation = string(params[2])
+        rel_out = string(params[3])
         data = length(params) > 3 ? params[4] : nothing
         data_json = !isnothing(data) ? " CONTENT \$data" : ""
         extra_vars = !isnothing(data) ? Dict("data" => data) : Dict{String, Any}()
         return "query", Any[prefix * "RELATE $rel_in->$relation->$rel_out$data_json", extra_vars]
     elseif method == "insert_relation"
-        relation = _to_string(params[1])
+        relation = string(params[1])
         payload = length(params) > 1 ? params[2] : Dict{String, Any}()
         return "query", Any[prefix * "INSERT INTO $relation \$data", Dict("data" => payload)]
     elseif method == "live"
@@ -145,7 +145,7 @@ function _http_adapt_method(method::String, params::Vector{Any}, prefix::String)
     elseif method == "patch"
         # params = [what, patches::Vector{Dict{String,Any}}, diff::Bool]
         # SurrealQL: UPDATE <what> PATCH $patches [RETURN DIFF].
-        what = _to_string(params[1])
+        what = string(params[1])
         patches = params[2]
         diff = length(params) > 2 ? (params[3] === true) : false
         return_clause = diff ? " RETURN DIFF" : ""

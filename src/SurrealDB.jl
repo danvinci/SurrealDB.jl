@@ -109,8 +109,8 @@ using ..SurrealDB:
     # finds the EmbeddedConnection method.
     _connect_embedded!, _close_backend!, _use_backend!,
     _embedded_rpc_call, _poll_embedded_live,
-    # Helpers used by embedded.jl from the parent scope
-    _to_string, kill!
+    # Helper used by embedded.jl from the parent scope
+    kill!
 
 using JSON
 using Dates
