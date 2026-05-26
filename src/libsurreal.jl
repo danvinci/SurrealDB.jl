@@ -204,20 +204,22 @@ const SCOPE_NAMESPACE = Cint(1)
 const SCOPE_DATABASE  = Cint(2)
 const SCOPE_RECORD    = Cint(3)
 
+# Symbol / string / int → Cint dispatch table. Same shape pattern as
+# embedded.jl's `_RPC_ARMS` — data table beats branch chain.
+const _SCOPE_MAP = Dict{Any, Cint}(
+    :ROOT      => SCOPE_ROOT,      "ROOT"      => SCOPE_ROOT,      0 => SCOPE_ROOT,
+    :NAMESPACE => SCOPE_NAMESPACE, "NAMESPACE" => SCOPE_NAMESPACE, 1 => SCOPE_NAMESPACE,
+    :DATABASE  => SCOPE_DATABASE,  "DATABASE"  => SCOPE_DATABASE,  2 => SCOPE_DATABASE,
+    :RECORD    => SCOPE_RECORD,    "RECORD"    => SCOPE_RECORD,    3 => SCOPE_RECORD,
+)
+
 # --- Helpers ---
 
 function _to_scope_enum(scope)::Cint
-    if scope == :ROOT || scope == "ROOT" || scope == 0
-        return SCOPE_ROOT
-    elseif scope == :NAMESPACE || scope == "NAMESPACE" || scope == 1
-        return SCOPE_NAMESPACE
-    elseif scope == :DATABASE || scope == "DATABASE" || scope == 2
-        return SCOPE_DATABASE
-    elseif scope == :RECORD || scope == "RECORD" || scope == 3
-        return SCOPE_RECORD
-    else
-        throw(EmbeddedFFIError("_to_scope_enum", "Unknown scope: $scope. Use :ROOT, :NAMESPACE, :DATABASE, or :RECORD"))
-    end
+    v = get(_SCOPE_MAP, scope, nothing)
+    isnothing(v) && throw(EmbeddedFFIError("_to_scope_enum",
+        "Unknown scope: $scope. Use :ROOT, :NAMESPACE, :DATABASE, or :RECORD"))
+    return v
 end
 
 # --- Memory management ---
@@ -456,22 +458,21 @@ function sr_signin(db::Ptr{Cvoid}, scope, username::String, password::String,
     return result
 end
 
-function sr_signup(db, scope, username, password, ns, db_name, access)::String
+function sr_signup(db::Ptr{Cvoid}, scope, username::String, password::String,
+                   ns::String, db_name::String, access::String)::String
 
     scope_val = _to_scope_enum(scope)
-    u = string(username)
-    p = string(password)
 
-    uc = Base.cconvert(Cstring, u)
-    pc = Base.cconvert(Cstring, p)
+    uc = Base.cconvert(Cstring, username)
+    pc = Base.cconvert(Cstring, password)
     creds = SrCredentials(Base.unsafe_convert(Cstring, uc), Base.unsafe_convert(Cstring, pc))
     creds_ref = Ref(creds)
     creds_ptr = Ptr{Cvoid}(pointer_from_objref(creds_ref))
 
     if scope_val != SCOPE_ROOT
-        nsc = Base.cconvert(Cstring, string(ns))
-        dbc = Base.cconvert(Cstring, string(db_name))
-        acc = Base.cconvert(Cstring, string(access))
+        nsc = Base.cconvert(Cstring, ns)
+        dbc = Base.cconvert(Cstring, db_name)
+        acc = Base.cconvert(Cstring, access)
         details = SrCredentialsAccess(
             Base.unsafe_convert(Cstring, nsc),
             Base.unsafe_convert(Cstring, dbc),
@@ -632,6 +633,7 @@ function _parse_sr_value_array(arr_ptr::Ptr{Cvoid}, n::Integer)::Vector{Any}
     end
     stride = Int(_sizeof_sr_value())
     result = Any[]
+    sizehint!(result, n)
     for i in 0:n-1
         elem = arr_ptr + i * stride
         push!(result, _parse_sr_value(elem))
@@ -639,7 +641,7 @@ function _parse_sr_value_array(arr_ptr::Ptr{Cvoid}, n::Integer)::Vector{Any}
     return result
 end
 
-function sr_create(db, resource, content)::Any
+function sr_create(db, resource::String, content)::Any
     err = Ref{Cstring}(C_NULL)
     res = Ref{Ptr{Cvoid}}(C_NULL)
     content_obj = content isa AbstractDict ? _dict_to_object(content) : _dict_to_object(Dict{String, Any}())
@@ -647,7 +649,7 @@ function sr_create(db, resource, content)::Any
     content_ptr = Ptr{Cvoid}(pointer_from_objref(content_ref))
     ret = ccall(_sym("sr_create"), Cint,
                 (Ptr{Cvoid}, Ptr{Cstring}, Ptr{Ptr{Cvoid}}, Cstring, Ptr{Cvoid}),
-                db, err, res, string(resource), content_ptr)
+                db, err, res, resource, content_ptr)
     _free_object(content_obj)
     if ret < 0
         err_msg = err[] != C_NULL ? unsafe_string(err[]) : "unknown error"
@@ -662,13 +664,13 @@ function sr_create(db, resource, content)::Any
     return nothing
 end
 
-function sr_select(db, resource)::Any
+function sr_select(db, resource::String)::Any
 
     err = Ref{Cstring}(C_NULL)
     res = Ref{Ptr{Cvoid}}(C_NULL)
     ret = ccall(_sym("sr_select"), Cint,
                 (Ptr{Cvoid}, Ptr{Cstring}, Ptr{Ptr{Cvoid}}, Cstring),
-                db, err, res, string(resource))
+                db, err, res, resource)
     if ret < 0
         err_msg = err[] != C_NULL ? unsafe_string(err[]) : "unknown error"
         if err[] != C_NULL; free_string(err[]); end
@@ -683,7 +685,7 @@ function sr_select(db, resource)::Any
     return Any[]
 end
 
-function sr_update(db, resource, content)::Any
+function sr_update(db, resource::String, content)::Any
 
     err = Ref{Cstring}(C_NULL)
     res = Ref{Ptr{Cvoid}}(C_NULL)
@@ -692,7 +694,7 @@ function sr_update(db, resource, content)::Any
     content_ptr = Ptr{Cvoid}(pointer_from_objref(content_ref))
     ret = ccall(_sym("sr_update"), Cint,
                 (Ptr{Cvoid}, Ptr{Cstring}, Ptr{Ptr{Cvoid}}, Cstring, Ptr{Cvoid}),
-                db, err, res, string(resource), content_ptr)
+                db, err, res, resource, content_ptr)
     _free_object(content_obj)
     if ret < 0
         err_msg = err[] != C_NULL ? unsafe_string(err[]) : "unknown error"
@@ -708,13 +710,13 @@ function sr_update(db, resource, content)::Any
     return Any[]
 end
 
-function sr_delete(db, resource)::Any
+function sr_delete(db, resource::String)::Any
 
     err = Ref{Cstring}(C_NULL)
     res = Ref{Ptr{Cvoid}}(C_NULL)
     ret = ccall(_sym("sr_delete"), Cint,
                 (Ptr{Cvoid}, Ptr{Cstring}, Ptr{Ptr{Cvoid}}, Cstring),
-                db, err, res, string(resource))
+                db, err, res, resource)
     if ret < 0
         err_msg = err[] != C_NULL ? unsafe_string(err[]) : "unknown error"
         if err[] != C_NULL; free_string(err[]); end
@@ -729,7 +731,7 @@ function sr_delete(db, resource)::Any
     return Any[]
 end
 
-function sr_insert(db, table, content)::Any
+function sr_insert(db, table::String, content)::Any
 
     err = Ref{Cstring}(C_NULL)
     res = Ref{Ptr{Cvoid}}(C_NULL)
@@ -738,7 +740,7 @@ function sr_insert(db, table, content)::Any
     content_ptr = Ptr{Cvoid}(pointer_from_objref(content_ref))
     ret = ccall(_sym("sr_insert"), Cint,
                 (Ptr{Cvoid}, Ptr{Cstring}, Ptr{Ptr{Cvoid}}, Cstring, Ptr{Cvoid}),
-                db, err, res, string(table), content_ptr)
+                db, err, res, table, content_ptr)
     _free_object(content_obj)
     if ret < 0
         err_msg = err[] != C_NULL ? unsafe_string(err[]) : "unknown error"
@@ -754,7 +756,7 @@ function sr_insert(db, table, content)::Any
     return Any[]
 end
 
-function sr_upsert(db, resource, content)::Any
+function sr_upsert(db, resource::String, content)::Any
 
     err = Ref{Cstring}(C_NULL)
     res = Ref{Ptr{Cvoid}}(C_NULL)
@@ -763,7 +765,7 @@ function sr_upsert(db, resource, content)::Any
     content_ptr = Ptr{Cvoid}(pointer_from_objref(content_ref))
     ret = ccall(_sym("sr_upsert"), Cint,
                 (Ptr{Cvoid}, Ptr{Cstring}, Ptr{Ptr{Cvoid}}, Cstring, Ptr{Cvoid}),
-                db, err, res, string(resource), content_ptr)
+                db, err, res, resource, content_ptr)
     _free_object(content_obj)
     if ret < 0
         err_msg = err[] != C_NULL ? unsafe_string(err[]) : "unknown error"
@@ -779,7 +781,7 @@ function sr_upsert(db, resource, content)::Any
     return Any[]
 end
 
-function sr_merge(db, resource, content)::Any
+function sr_merge(db, resource::String, content)::Any
 
     err = Ref{Cstring}(C_NULL)
     res = Ref{Ptr{Cvoid}}(C_NULL)
@@ -788,7 +790,7 @@ function sr_merge(db, resource, content)::Any
     content_ptr = Ptr{Cvoid}(pointer_from_objref(content_ref))
     ret = ccall(_sym("sr_merge"), Cint,
                 (Ptr{Cvoid}, Ptr{Cstring}, Ptr{Ptr{Cvoid}}, Cstring, Ptr{Cvoid}),
-                db, err, res, string(resource), content_ptr)
+                db, err, res, resource, content_ptr)
     _free_object(content_obj)
     if ret < 0
         err_msg = err[] != C_NULL ? unsafe_string(err[]) : "unknown error"
@@ -804,14 +806,14 @@ function sr_merge(db, resource, content)::Any
     return Any[]
 end
 
-function sr_patch_add(db, resource, path, value)::Any
+function sr_patch_add(db, resource::String, path::String, value)::Any
     err = Ref{Cstring}(C_NULL)
     res = Ref{Ptr{Cvoid}}(C_NULL)
     val_ptr = _julia_to_sr_value(value)
     try
         ret = ccall(_sym("sr_patch_add"), Cint,
                     (Ptr{Cvoid}, Ptr{Cstring}, Ptr{Ptr{Cvoid}}, Cstring, Cstring, Ptr{Cvoid}),
-                    db, err, res, string(resource), string(path), val_ptr)
+                    db, err, res, resource, path, val_ptr)
         if ret < 0
             err_msg = err[] != C_NULL ? unsafe_string(err[]) : "unknown error"
             if err[] != C_NULL; free_string(err[]); end
@@ -829,13 +831,13 @@ function sr_patch_add(db, resource, path, value)::Any
     end
 end
 
-function sr_patch_remove(db, resource, path)::Any
+function sr_patch_remove(db, resource::String, path::String)::Any
 
     err = Ref{Cstring}(C_NULL)
     res = Ref{Ptr{Cvoid}}(C_NULL)
     ret = ccall(_sym("sr_patch_remove"), Cint,
                 (Ptr{Cvoid}, Ptr{Cstring}, Ptr{Ptr{Cvoid}}, Cstring, Cstring),
-                db, err, res, string(resource), string(path))
+                db, err, res, resource, path)
     if ret < 0
         err_msg = err[] != C_NULL ? unsafe_string(err[]) : "unknown error"
         if err[] != C_NULL; free_string(err[]); end
@@ -850,14 +852,14 @@ function sr_patch_remove(db, resource, path)::Any
     return Any[]
 end
 
-function sr_patch_replace(db, resource, path, value)::Any
+function sr_patch_replace(db, resource::String, path::String, value)::Any
     err = Ref{Cstring}(C_NULL)
     res = Ref{Ptr{Cvoid}}(C_NULL)
     val_ptr = _julia_to_sr_value(value)
     try
         ret = ccall(_sym("sr_patch_replace"), Cint,
                     (Ptr{Cvoid}, Ptr{Cstring}, Ptr{Ptr{Cvoid}}, Cstring, Cstring, Ptr{Cvoid}),
-                    db, err, res, string(resource), string(path), val_ptr)
+                    db, err, res, resource, path, val_ptr)
         if ret < 0
             err_msg = err[] != C_NULL ? unsafe_string(err[]) : "unknown error"
             if err[] != C_NULL; free_string(err[]); end
@@ -875,7 +877,7 @@ function sr_patch_replace(db, resource, path, value)::Any
     end
 end
 
-function sr_relate(db, from, relation, to, content)::Any
+function sr_relate(db, from::String, relation::String, to::String, content)::Any
 
     err = Ref{Cstring}(C_NULL)
     res = Ref{Ptr{Cvoid}}(C_NULL)
@@ -888,7 +890,7 @@ function sr_relate(db, from, relation, to, content)::Any
     end
     ret = ccall(_sym("sr_relate"), Cint,
                 (Ptr{Cvoid}, Ptr{Cstring}, Ptr{Ptr{Cvoid}}, Cstring, Cstring, Cstring, Ptr{Cvoid}),
-                db, err, res, string(from), string(relation), string(to), content_ptr)
+                db, err, res, from, relation, to, content_ptr)
     if content_ptr != C_NULL
         _free_object(content_obj)
     end
@@ -906,7 +908,7 @@ function sr_relate(db, from, relation, to, content)::Any
     return Any[]
 end
 
-function sr_insert_relation(db, table, content)::Any
+function sr_insert_relation(db, table::String, content)::Any
 
     err = Ref{Cstring}(C_NULL)
     res = Ref{Ptr{Cvoid}}(C_NULL)
@@ -915,7 +917,7 @@ function sr_insert_relation(db, table, content)::Any
     content_ptr = Ptr{Cvoid}(pointer_from_objref(content_ref))
     ret = ccall(_sym("sr_insert_relation"), Cint,
                 (Ptr{Cvoid}, Ptr{Cstring}, Ptr{Ptr{Cvoid}}, Cstring, Ptr{Cvoid}),
-                db, err, res, string(table), content_ptr)
+                db, err, res, table, content_ptr)
     _free_object(content_obj)
     if ret < 0
         err_msg = err[] != C_NULL ? unsafe_string(err[]) : "unknown error"
