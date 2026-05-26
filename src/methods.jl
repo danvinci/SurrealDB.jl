@@ -604,17 +604,47 @@ function _results_to_struct(::Type{T}, results::Any) where {T}
 end
 
 """
+    _field_layout(::Type{T}) -> (str, types)
+
+Compile-time-specialized layout for a concrete struct `T`: tuple of field-name
+strings + tuple of field types. `@generated` so each concrete `T` gets its own
+method body with the layout baked in as literals — no per-row `fieldnames(T)` /
+`fieldtypes(T)` call, no Dict construction. Used by `_construct_one` and
+`_normalize_for_construct` on the typed-result hot path.
+
+Abstract `T` yields a method body that throws `ArgumentError` at runtime.
+"""
+@generated function _field_layout(::Type{T}) where {T}
+    if !isconcretetype(T)
+        return :(throw(ArgumentError(string("cannot deserialize into ", $T,
+            ": abstract type has no field layout. Pass a concrete struct type."))))
+    end
+    fnames = fieldnames(T)
+    fnames_str = string.(fnames)
+    ftypes = fieldtypes(T)
+    return :((str = $(fnames_str), types = $(ftypes)))
+end
+
+"""
     _construct_one(T, dict)
 
 Construct a single instance of `T` from a Dict, with type normalization
-for SurrealDB-specific types.
+for SurrealDB-specific types. `@generated` so the NamedTuple construction
+emits a tuple literal per concrete `T` — no per-row `[Pair...]` allocation
+or splat.
 """
-function _construct_one(::Type{T}, dict::AbstractDict) where {T}
-    normalized = _normalize_for_construct(T, dict)
-    # StructTypes.constructfrom works on NamedTuple but has a dispatch bug with plain Dict.
-    pairs = [Symbol(f) => get(normalized, string(f), nothing) for f in fieldnames(T)]
-    nt = (; pairs...)
-    return StructTypes.constructfrom(T, nt)
+@generated function _construct_one(::Type{T}, dict::AbstractDict) where {T}
+    if !isconcretetype(T)
+        return :(throw(ArgumentError(string("cannot deserialize into ", $T,
+            ": abstract type has no field layout. Pass a concrete struct type."))))
+    end
+    fnames = fieldnames(T)
+    fnames_str = string.(fnames)
+    value_exprs = [:(get(normalized, $(fnames_str[i]), nothing)) for i in eachindex(fnames_str)]
+    quote
+        normalized = _normalize_for_construct($T, dict)
+        StructTypes.constructfrom($T, NamedTuple{$(fnames)}(($(value_exprs...),)))
+    end
 end
 
 """
@@ -626,23 +656,23 @@ Converts:
 - ISO-8601 strings → DateTime
 - UUID strings → UUID
 - Nested dicts → structs (when target field is a struct type)
+
+Uses `_field_layout(T)` for compile-time field-name + type lookup; the
+incoming-dict iteration is O(rows × fields) via linear scan, which beats
+building a Dict{String,Any} per row for typical struct sizes (~5-20 fields).
 """
 function _normalize_for_construct(::Type{T}, dict) where {T}
-    field_types = Dict{String, Any}()
-    try
-        for (name, typ) in zip(fieldnames(T), fieldtypes(T))
-            field_types[string(name)] = typ
-        end
-    catch e
-        # fieldnames/fieldtypes throw on abstract T; anything else is a real bug.
-        e isa Union{ArgumentError, MethodError} || rethrow()
-        throw(ArgumentError("cannot deserialize into $T: abstract type has no field layout. Pass a concrete struct type."))
-    end
-
+    layout = _field_layout(T)
     normalized = Dict{String, Any}()
     for (k, v) in dict
         ks = string(k)
-        target_type = get(field_types, ks, nothing)
+        target_type = nothing
+        for i in eachindex(layout.str)
+            if layout.str[i] == ks
+                target_type = layout.types[i]
+                break
+            end
+        end
         if !isnothing(target_type)
             normalized[ks] = _coerce_value(v, target_type)
         else

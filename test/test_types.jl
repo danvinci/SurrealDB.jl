@@ -216,3 +216,36 @@ end
     @test !occursin("hunter2", rendered)
     @test !occursin("xyz", rendered)
 end
+
+# Local struct for the typed-construct testset below — defined at module
+# scope so StructTypes.StructType extension takes effect at top-level.
+struct _CtorTestUser
+    username::String
+    email::String
+    id::SurrealDB.RecordID
+end
+StructTypes.StructType(::Type{_CtorTestUser}) = StructTypes.Struct()
+
+@testset "Typed construct hot path (_construct_one + _field_layout)" begin
+    # Compile-time-cached layout for concrete T (s17 code-judo P1-2 + P1-4 fix).
+    layout = SurrealDB._field_layout(_CtorTestUser)
+    @test layout.str == ("username", "email", "id")
+    @test layout.types == (String, String, SurrealDB.RecordID)
+
+    # Concrete struct: typed construction normalizes RecordID from "table:id".
+    u = SurrealDB._construct_one(_CtorTestUser,
+        Dict("username" => "alice", "email" => "a@b.com", "id" => "user:alice"))
+    @test u.username == "alice"
+    @test u.email == "a@b.com"
+    @test u.id isa SurrealDB.RecordID
+    @test u.id == SurrealDB.RecordID("user", "alice")
+
+    # Missing field → defaulted to `nothing`, not an error (constructfrom decides).
+    @test_throws Exception SurrealDB._construct_one(_CtorTestUser,
+        Dict("username" => "bob"))
+
+    # Abstract T → ArgumentError (the @generated guard).
+    @test_throws ArgumentError SurrealDB._construct_one(
+        SurrealDB.AbstractConnection, Dict{String, Any}())
+    @test_throws ArgumentError SurrealDB._field_layout(SurrealDB.AbstractConnection)
+end
