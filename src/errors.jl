@@ -261,6 +261,20 @@ end
 Base.showerror(io::IO, e::ConnectionUnavailableError) = print(io, "ConnectionUnavailableError: ", e.message)
 
 """
+    MissingNamespaceDatabaseError()
+
+Thrown when `connect(...)` (or any operation that selects a server scope)
+is given exactly one of `ns` / `db` — both must be set, or neither. Database
+selection is namespace-scoped on the server, so a database without a
+namespace is meaningless. Mirrors the JS SDK's `MissingNamespaceDatabaseError`
+(sdk-refs/js/.../errors.ts:88).
+"""
+struct MissingNamespaceDatabaseError <: SurrealError end
+
+Base.showerror(io::IO, ::MissingNamespaceDatabaseError) = print(io,
+    "MissingNamespaceDatabaseError: pass both `ns` and `db`, or neither.")
+
+"""
     UnsupportedEngineError(scheme::String)
 
 The URL scheme is not recognised. Mirrors the JS SDK's same-named error.

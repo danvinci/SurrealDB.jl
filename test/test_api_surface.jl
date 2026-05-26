@@ -73,7 +73,7 @@ const EXPECTED_EXPORTS = Set([
     :ServerError, :QueryError, :ValidationError, :ConfigurationError,
     :ThrownError, :SerializationError, :NotAllowedError, :NotFoundError,
     :AlreadyExistsError, :InternalError,
-    :EmbeddedFFIError, :ConnectionUnavailableError, :UnsupportedEngineError,
+    :EmbeddedFFIError, :ConnectionUnavailableError, :MissingNamespaceDatabaseError, :UnsupportedEngineError,
     :UnsupportedFeatureError, :UnsupportedVersionError, :UnexpectedResponseError,
 
     # CBOR wire-format types (re-exported from SurrealDB.SurrealCBOR)

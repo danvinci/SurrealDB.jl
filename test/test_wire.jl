@@ -86,6 +86,15 @@ end
     # Bad wire symbol — caught before any socket work.
     @test_throws ArgumentError SurrealDB.connect("ws://127.0.0.1:1"; wire=:bson)
     @test_throws ArgumentError SurrealDB.connect("http://127.0.0.1:1"; wire=:msgpack)
+
+    # ns/db preflight — pass both or neither (mirrors JS controller:312).
+    @test_throws SurrealDB.MissingNamespaceDatabaseError SurrealDB.connect(
+        "ws://127.0.0.1:1"; db="foo")
+    @test_throws SurrealDB.MissingNamespaceDatabaseError SurrealDB.connect(
+        "ws://127.0.0.1:1"; ns="bar")
+    # Both nil → past preflight; throws ConnectionError on the unreachable URL.
+    @test_throws SurrealDB.ConnectionError SurrealDB.connect(
+        "ws://127.0.0.1:1"; connect_timeout=0.2)
 end
 
 @testset "wire: CBOR encode error wrapping" begin

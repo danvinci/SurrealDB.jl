@@ -49,7 +49,7 @@ export GeometryMultiPoint, GeometryMultiLine, GeometryMultiPolygon, GeometryColl
 export SurrealError, RPCError, ConnectionError
 export ServerError, QueryError, ValidationError, ConfigurationError, ThrownError,
        SerializationError, NotAllowedError, NotFoundError, AlreadyExistsError, InternalError
-export EmbeddedFFIError, ConnectionUnavailableError, UnsupportedEngineError, UnsupportedFeatureError, UnsupportedVersionError, UnexpectedResponseError
+export EmbeddedFFIError, ConnectionUnavailableError, MissingNamespaceDatabaseError, UnsupportedEngineError, UnsupportedFeatureError, UnsupportedVersionError, UnexpectedResponseError
 
 # --- Implementation modules ---
 
