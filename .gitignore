@@ -25,3 +25,7 @@ deps/build.log
 # Documenter.jl build output
 docs/build/
 docs/Manifest.toml
+
+# Peer-SDK clones for cross-SDK research. Shallow checkouts; not part of the
+# source distribution. Each subdirectory is a vendored peer SDK source tree.
+sdk-refs/
