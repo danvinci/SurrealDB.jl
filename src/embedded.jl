@@ -128,6 +128,7 @@ end
 # is defined inside this submodule and isn't visible to the parent at parse time.
 function SurrealDB._rpc_call(client::SurrealDB.SurrealClient{<:EmbeddedConnection}, method::String,
                              params::Vector{Any}; session=nothing, txn=nothing)
+    SurrealDB._check_open(client)
     return SurrealDB._embedded_rpc_call(client.connection, method, params)
 end
 

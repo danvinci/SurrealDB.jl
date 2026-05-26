@@ -46,7 +46,7 @@ function _fake_client_with_version(raw::String)
     # Construct a no-network client. version() lookups dispatch through
     # _rpc_call; we shadow it locally via a closure on the connection.
     conn = SurrealDB.RemoteConnection{:ws, :json}(url="ws://x")
-    client = SurrealDB.SurrealClient(conn, nothing, nothing, nothing, nothing, Dict{String, Any}())
+    client = SurrealDB.SurrealClient(conn, nothing, nothing, nothing, nothing, Dict{String, Any}(), false)
     conn.client = client
     # Patch the version() entry by stubbing _rpc_call_remote on this conn —
     # cleanest seam: override the SurrealClient-typed dispatch with a closure

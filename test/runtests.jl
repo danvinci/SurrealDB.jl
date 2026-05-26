@@ -93,6 +93,9 @@ end
     _section("Live KILLED dispatch") do
         @testset "Live KILLED dispatch" begin include("test_live_kill.jl") end
     end
+    _section("Closed lifecycle") do
+        @testset "Closed lifecycle" begin include("test_closed.jl") end
+    end
     _section("Reconnect") do
         @testset "Reconnect" begin include("test_reconnect.jl") end
     end

@@ -48,13 +48,13 @@ end
 @testset "events(client) returns the right channel for each transport" begin
     # WS: real channel
     conn_ws = SurrealDB.RemoteWSConnection()
-    client_ws = SurrealDB.SurrealClient(conn_ws, nothing, nothing, nothing, nothing, Dict{String, Any}())
+    client_ws = SurrealDB.SurrealClient(conn_ws, nothing, nothing, nothing, nothing, Dict{String, Any}(), false)
     @test SurrealDB.events(client_ws) === conn_ws.events
     @test isopen(SurrealDB.events(client_ws))
 
     # HTTP: also has events (RemoteConnection{:http} struct field)
     conn_http = SurrealDB.RemoteHTTPConnection()
-    client_http = SurrealDB.SurrealClient(conn_http, nothing, nothing, nothing, nothing, Dict{String, Any}())
+    client_http = SurrealDB.SurrealClient(conn_http, nothing, nothing, nothing, nothing, Dict{String, Any}(), false)
     @test SurrealDB.events(client_http) === conn_http.events
 
     # Embedded: per-instance channel, not a shared sentinel. Drive the event
@@ -63,7 +63,7 @@ end
                                             status=SurrealDB.STATUS_DISCONNECTED,
                                             lock=ReentrantLock(),
                                             live_streams=Dict{String, Ptr{Cvoid}}())
-    client_emb = SurrealDB.SurrealClient(conn_emb, nothing, nothing, nothing, nothing, Dict{String, Any}())
+    client_emb = SurrealDB.SurrealClient(conn_emb, nothing, nothing, nothing, nothing, Dict{String, Any}(), false)
     @test SurrealDB.events(client_emb) === conn_emb.events
     @test isopen(SurrealDB.events(client_emb))
 

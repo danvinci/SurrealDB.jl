@@ -47,7 +47,7 @@ WebSocket-only (not supported on HTTP connections).
 function attach!(client::SurrealClient{C}) where {C<:RemoteWSConnection}
     sid = UUIDs.uuid4()
     _rpc_call(client, "attach", Any[]; session=sid)
-    return SurrealSession{C}(client, sid)
+    return SurrealSession{C}(client, sid, false)
 end
 
 """
@@ -103,9 +103,22 @@ auth, and variables.
 mutable struct SurrealSession{C<:AbstractConnection}
     client::SurrealClient{C}
     session_id::UUID
+    "Set to `true` by `close!`; session-bound RPCs check this and throw
+     `ConnectionUnavailableError` rather than silently routing to a detached
+     server-side session id."
+    closed::Bool
 end
 
 Base.show(io::IO, s::SurrealSession) = print(io, "SurrealSession(", s.session_id, ")")
+
+# Closed-lifecycle guard. Mirrors `_check_open(::SurrealClient)`; checks both
+# the wrapped client AND the session's own closed flag.
+function _check_open(s::SurrealSession)
+    _check_open(s.client)
+    s.closed && throw(ConnectionUnavailableError(
+        "SurrealSession has been closed; create a new session via `attach!(client)`."))
+    return nothing
+end
 
 """
     close!(session::SurrealSession)
@@ -114,7 +127,12 @@ Destroy the server-side session. After closing, the session must not be used.
 Wraps [`detach!`](@ref).
 """
 function close!(session::SurrealSession{<:RemoteWSConnection})
-    detach!(session.client, session.session_id)
+    session.closed && return nothing  # idempotent
+    try
+        detach!(session.client, session.session_id)
+    finally
+        session.closed = true
+    end
     return nothing
 end
 
@@ -126,6 +144,7 @@ Start a transaction within a v3+ session.
 Returns the transaction UUID. Pass this to [`commit!`](@ref) or [`cancel!`](@ref).
 """
 function begin!(session::SurrealSession{<:RemoteWSConnection})
+    _check_open(session)
     result = _rpc_call(session.client, "begin", Any[]; session=session.session_id)
     txn_id = result isa String ? UUIDs.UUID(result) :
              result isa UUIDs.UUID ? result : UUIDs.UUID(string(result))
@@ -138,6 +157,7 @@ end
 Commit a transaction within a v3+ session.
 """
 function commit!(session::SurrealSession{<:RemoteWSConnection}, txn_id)
+    _check_open(session)
     _rpc_call(session.client, "commit", Any[]; session=session.session_id, txn=txn_id)
     return nothing
 end
@@ -148,6 +168,7 @@ end
 Cancel/rollback a transaction within a v3+ session.
 """
 function cancel!(session::SurrealSession{<:RemoteWSConnection}, txn_id)
+    _check_open(session)
     _rpc_call(session.client, "cancel", Any[]; session=session.session_id, txn=txn_id)
     return nothing
 end

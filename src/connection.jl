@@ -302,6 +302,18 @@ mutable struct SurrealClient{C<:AbstractConnection}
     tokens::Union{Tokens, Nothing}
     "Session variables set via `let!` — used for state inspection and reconnect re-application"
     variables::Dict{String, Any}
+    "Set to `true` by `close!`; every RPC entry checks this and throws `ConnectionUnavailableError` rather than silently producing nil-field downstream errors."
+    closed::Bool
+end
+
+# Closed-lifecycle guard. Called from every `_rpc_call` entry. The post-close
+# state has nil ns/db/token/tokens fields; calling through silently produced
+# server-side errors with no useful signal. The flag-and-throw shape surfaces
+# the misuse at the call site.
+function _check_open(c::SurrealClient)
+    c.closed && throw(ConnectionUnavailableError(
+        "SurrealClient has been closed; create a new client via `connect(...)`."))
+    return nothing
 end
 
 function Base.show(io::IO, c::SurrealClient)
@@ -629,7 +641,7 @@ function connect(url::String;
                 throw(ConnectionError(msg, cause))
             end
         end
-        client = SurrealClient(conn, nothing, nothing, nothing, nothing, Dict{String, Any}())
+        client = SurrealClient(conn, nothing, nothing, nothing, nothing, Dict{String, Any}(), false)
         conn.client = client
 
         # Version probe — runs against the live socket before any user code
@@ -657,7 +669,7 @@ function connect(url::String;
         return client
     elseif scheme in (:mem, :surrealkv)
         conn = embedded_connect(url)
-        client = SurrealClient(conn, nothing, nothing, nothing, nothing, Dict{String, Any}())
+        client = SurrealClient(conn, nothing, nothing, nothing, nothing, Dict{String, Any}(), false)
 
         if !isnothing(ns) && !isnothing(db)
             use!(client, ns, db)
@@ -734,11 +746,16 @@ end
 Close the database connection. The client cannot be used after this call.
 """
 function close!(client::SurrealClient{C}) where {C<:AbstractConnection}
-    _close_backend!(client.connection)
-    client.namespace = nothing
-    client.database = nothing
-    client.token = nothing
-    client.tokens = nothing
+    client.closed && return nothing  # idempotent
+    try
+        _close_backend!(client.connection)
+    finally
+        client.namespace = nothing
+        client.database = nothing
+        client.token = nothing
+        client.tokens = nothing
+        client.closed = true
+    end
     return nothing
 end
 
@@ -911,6 +928,7 @@ end
 
 function _rpc_call(client::SurrealClient{<:RemoteConnection}, method::String, params::Vector{Any};
                    session=nothing, txn=nothing)
+    _check_open(client)
     return _rpc_call_remote(client, method, params; session=session, txn=txn)
 end
 
