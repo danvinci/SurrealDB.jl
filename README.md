@@ -1,10 +1,10 @@
 # SurrealDB.jl
 
-[![Test](https://github.com/danvinci/surrealdb/actions/workflows/test.yml/badge.svg)](https://github.com/danvinci/surrealdb/actions/workflows/test.yml)
-[![Benchmark](https://github.com/danvinci/surrealdb/actions/workflows/bench.yml/badge.svg)](https://github.com/danvinci/surrealdb/actions/workflows/bench.yml)
-[![Interop](https://github.com/danvinci/surrealdb/actions/workflows/interop.yml/badge.svg)](https://github.com/danvinci/surrealdb/actions/workflows/interop.yml)
-[![Docs](https://github.com/danvinci/surrealdb/actions/workflows/docs.yml/badge.svg)](https://danvinci.github.io/surrealdb/)
-[![codecov](https://codecov.io/gh/danvinci/surrealdb/branch/main/graph/badge.svg)](https://codecov.io/gh/danvinci/surrealdb)
+[![Test](https://github.com/danvinci/SurrealDB.jl/actions/workflows/test.yml/badge.svg)](https://github.com/danvinci/SurrealDB.jl/actions/workflows/test.yml)
+[![Benchmark](https://github.com/danvinci/SurrealDB.jl/actions/workflows/bench.yml/badge.svg)](https://github.com/danvinci/SurrealDB.jl/actions/workflows/bench.yml)
+[![Interop](https://github.com/danvinci/SurrealDB.jl/actions/workflows/interop.yml/badge.svg)](https://github.com/danvinci/SurrealDB.jl/actions/workflows/interop.yml)
+[![Docs](https://github.com/danvinci/SurrealDB.jl/actions/workflows/docs.yml/badge.svg)](https://danvinci.github.io/SurrealDB.jl/dev/)
+[![codecov](https://codecov.io/gh/danvinci/SurrealDB.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/danvinci/SurrealDB.jl)
 
 Julia client for [SurrealDB](https://surrealdb.com).
 Talks to a remote `surreal` server over WebSocket or HTTP, or runs the database in-process via `libsurreal`.
@@ -17,11 +17,11 @@ Default wire is CBOR.
 
 ```julia
 using Pkg
-Pkg.add(url="https://github.com/danvinci/surrealdb", rev="v0.2.0-alpha.1")
+Pkg.add(url="https://github.com/danvinci/SurrealDB.jl", rev="v0.2.0-alpha.1")
 ```
 
 Not yet in the General registry.
-The embedded backend needs `libsurreal` — see [Embedded mode](https://danvinci.github.io/surrealdb/integrations/#Embedded-mode).
+The embedded backend needs `libsurreal`; see [Embedded mode](https://danvinci.github.io/SurrealDB.jl/dev/integrations/#Embedded-mode).
 
 ## Quickstart
 
@@ -65,17 +65,17 @@ end
 
 ## Documentation
 
-Full reference at [danvinci.github.io/surrealdb](https://danvinci.github.io/surrealdb/):
+Full reference at [danvinci.github.io/SurrealDB.jl](https://danvinci.github.io/SurrealDB.jl/dev/):
 
-- [Record IDs](https://danvinci.github.io/surrealdb/records/) — `RecordID(t, i)`, `rid"t:i"` macro, `StringRecordID`
-- [Wire format](https://danvinci.github.io/surrealdb/wire/) — CBOR + JSON, typed round-trips, NONE / NULL
-- [Authentication](https://danvinci.github.io/surrealdb/auth/) — root / namespace / scoped, refresh tokens, state replay
-- [Live queries](https://danvinci.github.io/surrealdb/live/) — subscriptions, reconnect handling, server-initiated KILLED
-- [Transactions](https://danvinci.github.io/surrealdb/transactions/) — v2 RPC, v3 SurrealQL, session variables
-- [Reconnect](https://danvinci.github.io/surrealdb/reconnect/) — tuning, lifecycle observability
-- [Errors](https://danvinci.github.io/surrealdb/errors/) — typed hierarchy
-- [Integrations](https://danvinci.github.io/surrealdb/integrations/) — StructTypes, Tables.jl, MetaGraphsNext
-- [API reference](https://danvinci.github.io/surrealdb/api/) — full surface
+- [Record IDs](https://danvinci.github.io/SurrealDB.jl/dev/records/): `RecordID(t, i)`, `rid"t:i"` macro, `StringRecordID`
+- [Wire format](https://danvinci.github.io/SurrealDB.jl/dev/wire/): CBOR + JSON, typed round-trips, NONE / NULL
+- [Authentication](https://danvinci.github.io/SurrealDB.jl/dev/auth/): root / namespace / scoped, refresh tokens, state replay
+- [Live queries](https://danvinci.github.io/SurrealDB.jl/dev/live/): subscriptions, multi-subscriber fan-out, reconnect handling, server-initiated KILLED
+- [Transactions](https://danvinci.github.io/SurrealDB.jl/dev/transactions/): v2 client RPC, v3 session-scoped `SurrealTransaction`, session variables
+- [Reconnect](https://danvinci.github.io/SurrealDB.jl/dev/reconnect/): tuning, lifecycle observability, closed-handle semantics
+- [Errors](https://danvinci.github.io/SurrealDB.jl/dev/errors/): typed hierarchy
+- [Integrations](https://danvinci.github.io/SurrealDB.jl/dev/integrations/): StructTypes, Tables.jl, MetaGraphsNext
+- [API reference](https://danvinci.github.io/SurrealDB.jl/dev/api/): full surface
 
 ## Cross-SDK conformance
 

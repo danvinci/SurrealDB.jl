@@ -35,6 +35,7 @@ SurrealDB.unset!
 
 ```@docs
 SurrealDB.live
+SurrealDB.subscribe
 SurrealDB.kill!
 SurrealDB.LiveSubscription
 SurrealDB.LiveNotification
@@ -46,6 +47,7 @@ SurrealDB.LiveNotification
 SurrealDB.begin!
 SurrealDB.commit!
 SurrealDB.cancel!
+SurrealDB.SurrealTransaction
 SurrealDB.attach!
 SurrealDB.detach!
 SurrealDB.sessions

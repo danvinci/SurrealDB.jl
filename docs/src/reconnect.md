@@ -14,12 +14,19 @@ db = SurrealDB.connect("ws://localhost:8000";
     reconnect_jitter = 0.1,          # fraction of delay added randomly (0..1)
     ping_interval = 30.0,            # seconds; 0 disables keepalive
     rpc_timeout = 30.0,              # seconds; Inf disables per-RPC timeout
+    connect_timeout = 10.0,          # seconds; WS handshake budget (distinct from rpc_timeout)
     refresh_lead_time = 30.0,        # seconds before JWT expiry to refresh
     wire = :cbor,                    # or :json
     check_version = true,            # skip server-version probe at connect
     logger = SurrealDB.NullLogger(),
 )
 ```
+
+## After `close!`
+
+`close!` is idempotent and final: subsequent RPCs throw [`ConnectionUnavailableError`](@ref) at the call site.
+Closed [`SurrealSession`](@ref) and [`SurrealTransaction`](@ref) handles throw the same way.
+Create a fresh handle to continue.
 
 ## Lifecycle observability
 

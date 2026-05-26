@@ -2,7 +2,7 @@
 
 ## Transactions
 
-For SurrealDB v2 servers, the RPC-level helpers work:
+For SurrealDB v2 servers, the client-level RPC helpers work:
 
 ```julia
 SurrealDB.begin!(db)
@@ -15,8 +15,27 @@ catch
 end
 ```
 
-For **v3+ remote servers**, the `begin!` / `commit!` / `cancel!` RPC methods expect a session-scoped transaction UUID.
-Prefer raw SurrealQL:
+For **v3+ remote servers**, transactions are session-scoped.
+[`begin!(session)`](@ref) returns a [`SurrealTransaction`](@ref) wrapper holding the server-side txn UUID and a `closed::Bool` guard, so a stale handle can't be re-committed:
+
+```julia
+session = SurrealDB.attach!(db)
+try
+    txn = SurrealDB.begin!(session)
+    try
+        SurrealDB.query(session.client, "CREATE user CONTENT { name: 'Bob' }")
+        SurrealDB.commit!(txn)
+    catch
+        SurrealDB.cancel!(txn)
+        rethrow()
+    end
+finally
+    SurrealDB.close!(session)
+end
+```
+
+Statements inside the transaction body run through `session.client` for now; first-class `session.query(...)` / `txn.query(...)` forwarding is on the roadmap.
+For larger transactional bodies, write SurrealQL directly:
 
 ```julia
 SurrealDB.query(db, """

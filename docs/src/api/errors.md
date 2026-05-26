@@ -17,6 +17,7 @@ SurrealDB.AlreadyExistsError
 SurrealDB.InternalError
 SurrealDB.ConnectionError
 SurrealDB.ConnectionUnavailableError
+SurrealDB.MissingNamespaceDatabaseError
 SurrealDB.UnsupportedEngineError
 SurrealDB.UnsupportedFeatureError
 SurrealDB.UnsupportedVersionError

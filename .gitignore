@@ -1,31 +1,28 @@
-# Built libsurreal binary; not part of source distribution
-libsurrealdb_c.dylib
-libsurrealdb_c.so
-libsurrealdb_c.dll
+# Native libs
 *.so
 *.dylib
 *.dll
 
-# Library packages don't commit Manifest — would lock users to our
-# transitive deps. Project.toml is the public contract.
-Manifest.toml
-
-# Local editor / agent state
-.claude/
-
-# Julia precompile output
+# Coverage & build
 *.cov
 *.jl.cov
 *.jl.mem
 deps/build.log
 
-# OS
-.DS_Store
-
-# Documenter.jl build output
+# Documenter
 docs/build/
 docs/Manifest.toml
 
-# Peer-SDK clones for cross-SDK research. Shallow checkouts; not part of the
-# source distribution. Each subdirectory is a vendored peer SDK source tree.
+# Manifest
+Manifest.toml
+
+# Agents
+.claude/
+.code-review-graph/
+
+# Peer SDKs
 sdk-refs/
+test/conformance/
+
+# OS
+.DS_Store
