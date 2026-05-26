@@ -109,9 +109,12 @@ end
 
 function _register_live!(conn::RemoteWSConnection, sub::LiveSubscription, table, diff::Bool)
     lock(conn.live_lock) do
-        conn.notification_channels[sub.query_id] = sub.channel
+        chs = get!(conn.notification_channels, sub.query_id, Channel[])
+        push!(chs, sub.channel)
         conn.live_subscriptions[sub.query_id] = (table, diff)
-        conn.live_handles[sub.query_id] = sub
+        # First registrant owns the kill!-by-handle semantics; later subscribers
+        # piggyback on the same server-side live and share the kill! teardown.
+        haskey(conn.live_handles, sub.query_id) || (conn.live_handles[sub.query_id] = sub)
     end
     return nothing
 end
@@ -180,28 +183,32 @@ function _reconnect_apply_state!(conn::RemoteWSConnection)
     end
 
     for (old_qid, (table, diff)) in old_subs
-        ch = get(old_channels, old_qid, nothing)
-        if !isnothing(ch) && isopen(ch)
-            try
-                result = _rpc_call(client, "live", Any[table, diff])
-                new_qid = result isa String ? result : string(result)
-                sub = get(old_handles, old_qid, nothing)
-                lock(conn.live_lock) do
-                    conn.live_subscriptions[new_qid] = (table, diff)
-                    conn.notification_channels[new_qid] = ch
-                    # Re-key handle so kill!(sub) targets the new server-side query_id.
-                    if !isnothing(sub)
-                        sub.query_id = new_qid
-                        conn.live_handles[new_qid] = sub
-                    end
-                end
-            catch
-                # Re-subscription failed, close the old channel and mark sub dead
-                try; close(ch); catch; end
-                sub = get(old_handles, old_qid, nothing)
+        chs = get(old_channels, old_qid, Channel[])
+        # All subscribers share one server-side live; skip the re-subscribe if
+        # everyone has already torn down their consumer end.
+        any(isopen, chs) || continue
+        try
+            result = _rpc_call(client, "live", Any[table, diff])
+            new_qid = result isa String ? result : string(result)
+            sub = get(old_handles, old_qid, nothing)
+            lock(conn.live_lock) do
+                conn.live_subscriptions[new_qid] = (table, diff)
+                conn.notification_channels[new_qid] = chs
+                # Re-key handle so kill!(sub) targets the new server-side query_id.
                 if !isnothing(sub)
-                    sub.active = false
+                    sub.query_id = new_qid
+                    conn.live_handles[new_qid] = sub
                 end
+            end
+        catch
+            # Re-subscription failed: close every consumer channel and mark
+            # the (primary) sub dead so iteration loops terminate.
+            for ch in chs
+                try; close(ch); catch; end
+            end
+            sub = get(old_handles, old_qid, nothing)
+            if !isnothing(sub)
+                sub.active = false
             end
         end
     end
@@ -333,7 +340,12 @@ function _teardown_channels!(conn::RemoteWSConnection)
     _drain_and_signal_response_channels!(conn,
         Dict("error" => Dict("code" => -1, "message" => "Connection closed")))
     notif_chs = lock(conn.live_lock) do
-        snap = collect(values(conn.notification_channels))
+        # Flatten Vector{Vector{Channel}} into a single list so the close-loop
+        # below doesn't care about the multi-subscriber registry shape.
+        snap = Channel[]
+        for v in values(conn.notification_channels)
+            append!(snap, v)
+        end
         empty!(conn.notification_channels)
         empty!(conn.live_subscriptions)
         empty!(conn.live_handles)
@@ -419,10 +431,15 @@ end
 # slow subscriber's put! would deadlock any concurrent kill! / reconnect on the
 # same lock. (Cf. Go SDK aef39d3a.)
 function _deliver_to_subscriber!(conn::RemoteWSConnection, qid::String, payload)
-    ch = lock(conn.live_lock) do
-        get(conn.notification_channels, qid, nothing)
+    # Snapshot the subscriber vector under the lock, then fan out outside —
+    # a slow consumer mustn't block the lock that registration / kill! / the
+    # reconnect loop contend on.
+    chs = lock(conn.live_lock) do
+        v = get(conn.notification_channels, qid, nothing)
+        isnothing(v) ? Channel[] : copy(v)
     end
-    if !isnothing(ch) && isopen(ch)
+    for ch in chs
+        isopen(ch) || continue
         try
             put!(ch, payload)
         catch e
@@ -445,18 +462,20 @@ function _dispatch_live_notification(conn::RemoteWSConnection, result::AbstractD
         # If the channel is still present, the server killed unprompted (DDL
         # change, resource limit, admin action) — surface KILLED to the
         # subscriber so they can react, then tear down.
-        ch, sub = lock(conn.live_lock) do
-            c = get(conn.notification_channels, qid, nothing)
+        chs, sub = lock(conn.live_lock) do
+            v = get(conn.notification_channels, qid, nothing)
             s = pop!(conn.live_handles, qid, nothing)
-            isnothing(c) || delete!(conn.notification_channels, qid)
+            isnothing(v) || delete!(conn.notification_channels, qid)
             delete!(conn.live_subscriptions, qid)
-            (c, s)
+            (isnothing(v) ? Channel[] : copy(v), s)
         end
-        isnothing(ch) && return nothing  # client-initiated; already torn down
-        # Server-initiated: notify subscriber, then close channel so any
-        # `for n in sub.channel` loop terminates.
-        if isopen(ch)
-            try; put!(ch, LiveNotification(result)); catch e
+        isempty(chs) && return nothing  # client-initiated; already torn down
+        # Server-initiated: fan out KILLED to every subscriber, then close each
+        # channel so `for n in sub.channel` loops terminate.
+        notif = LiveNotification(result)
+        for ch in chs
+            isopen(ch) || continue
+            try; put!(ch, notif); catch e
                 e isa InvalidStateException || rethrow()
             end
             try; close(ch); catch; end

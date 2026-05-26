@@ -61,6 +61,43 @@ function kill!(sub::LiveSubscription)
     return nothing
 end
 
+"""
+    subscribe(sub::LiveSubscription) -> LiveSubscription
+
+Register an additional consumer on `sub`'s server-side live query. The returned
+subscription shares `query_id` with the input but holds a fresh `channel`;
+both channels receive every notification (fan-out at the SDK level).
+
+`kill!(original_sub)` (or `kill!(client, query_id)`) tears down ALL subscribers
+sharing the UUID — per-consumer teardown is not supported. WS-only.
+
+```julia
+sub  = SurrealDB.live(db, "stream")
+sub2 = SurrealDB.subscribe(sub)
+@async for n in sub.channel;  process(n); end    # consumer A
+@async for n in sub2.channel; log(n);     end    # consumer B
+SurrealDB.kill!(sub)                              # both channels close
+```
+"""
+function subscribe(sub::LiveSubscription)
+    sub.active || throw(ArgumentError(
+        "subscribe: source LiveSubscription is no longer active."))
+    client = sub.client
+    isnothing(client) && throw(ArgumentError(
+        "subscribe: source LiveSubscription has no client (unregistered handle)."))
+    client.connection isa RemoteWSConnection || throw(UnsupportedFeatureError(
+        :subscribe, :embedded))
+
+    ch = Channel{Any}(32)
+    new_sub = LiveSubscription(sub.query_id, ch, client, true)
+    conn = client.connection
+    lock(conn.live_lock) do
+        chs = get!(conn.notification_channels, sub.query_id, Channel[])
+        push!(chs, ch)
+    end
+    return new_sub
+end
+
 # Stub — concrete method added by embedded.jl (qualified as
 # `SurrealDB._poll_embedded_live`) so dispatch crosses the module boundary.
 # Backend-specific live registration/deregistration stubs live in

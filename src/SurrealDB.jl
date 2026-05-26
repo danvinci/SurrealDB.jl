@@ -23,7 +23,7 @@ export relate, insert_relation
 export patch, patch_add, patch_remove, patch_replace
 export run
 export let!, unset!
-export live, kill!
+export live, kill!, subscribe
 export begin!, commit!, cancel!
 export attach!, detach!, sessions
 export SurrealSession, SurrealTransaction

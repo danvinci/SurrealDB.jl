@@ -199,8 +199,8 @@ Base.@kwdef mutable struct RemoteConnection{P, W} <: AbstractRemoteConnection
     "Writer task drains this channel and writes to the WS socket; `nothing` until first connect"
     write_channel::Union{Channel, Nothing} = nothing
     "live query_id → notification Channel"
-    notification_channels::Dict{String, Channel} = Dict{String, Channel}()
-    "Guards the three live-query Dicts (notification_channels, live_subscriptions, live_handles) against concurrent registration/teardown across reconnect, kill!, and the WS reader"
+    notification_channels::Dict{String, Vector{Channel}} = Dict{String, Vector{Channel}}()
+    "Guards the three live-query Dicts (notification_channels — vector for multi-subscriber fan-out, live_subscriptions, live_handles) against concurrent registration/teardown across reconnect, kill!, and the WS reader"
     live_lock::ReentrantLock = ReentrantLock()
     "live query_id → (table, diff) — used by `_reconnect_apply_state!` to re-issue subscriptions on reconnect. `table` is stored as the caller-supplied type (`String` / `Table` / `RecordID`) so reconnect replay preserves CBOR tag fidelity."
     live_subscriptions::Dict{String, Tuple{Any, Bool}} = Dict{String, Tuple{Any, Bool}}()
@@ -602,7 +602,7 @@ function connect(url::String;
                                  http_base_url=http_base,
                                  response_channels=Dict{Int, Channel}(),
                                  write_channel=nothing,
-                                 notification_channels=Dict{String, Channel}(),
+                                 notification_channels=Dict{String, Vector{Channel}}(),
                                  reconnect=reconnect,
                                  reconnect_max_attempts=reconnect_max_attempts,
                                  reconnect_base_delay=reconnect_base_delay,
