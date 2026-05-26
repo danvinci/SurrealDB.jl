@@ -3,7 +3,7 @@
 
 module LibSurreal
 
-using Libdl
+using Libdl: Libdl
 # Now nested 2 deep (SurrealDB > Embedded > LibSurreal); reach the parent
 # package via 3 dots. Embedded re-imports EmbeddedFFIError from SurrealDB.
 import ..Embedded: EmbeddedFFIError

@@ -15,8 +15,8 @@ module SurrealCBOR
 # Stdlib only. Keeps the codec substrate-isolated from SDK upper layers;
 # Aqua piracy check at the SurrealDB level enforces this discipline.
 
-using UUIDs
-using Dates
+using UUIDs: UUIDs, UUID
+using Dates: Dates, day, hour, minute, month, year
 
 # Sibling SurrealTypes: typed wire-format values whose encode methods
 # this module extends. SurrealTypes itself has no upward deps.

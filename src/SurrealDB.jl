@@ -1,12 +1,12 @@
 module SurrealDB
 
-using Base64
-using JSON
-using HTTP
-using StructTypes
-using Tables
-using Dates
-using UUIDs
+using Base64: Base64
+using JSON: JSON
+using HTTP: HTTP
+using StructTypes: StructTypes
+using Tables: Tables
+using Dates: Dates, DateTime
+using UUIDs: UUIDs, UUID
 
 # Dependencies for embedded mode (loaded lazily)
 # using Libdl - already in stdlib
@@ -113,9 +113,9 @@ using ..SurrealDB:
     # Helper used by embedded.jl from the parent scope
     kill!
 
-using JSON
-using Dates
-using UUIDs
+using JSON: JSON
+using Dates: Dates, DateTime
+using UUIDs: UUIDs
 
 include("ffi_types.jl")
 include("libsurreal.jl")

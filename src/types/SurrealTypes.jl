@@ -14,8 +14,8 @@
 
 module SurrealTypes
 
-using Dates
-using UUIDs
+using Dates: Dates
+using UUIDs: UUIDs
 
 export RecordID, StringRecordID, Table
 export @rid_str
