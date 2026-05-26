@@ -26,7 +26,7 @@ export let!, unset!
 export live, kill!
 export begin!, commit!, cancel!
 export attach!, detach!, sessions
-export SurrealSession
+export SurrealSession, SurrealTransaction
 export export_db, import_db
 export libsurreal_load!, SurrealThing
 export to_table, to_metagraph

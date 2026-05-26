@@ -54,8 +54,12 @@ end
             sess.closed = true
             @test_throws SurrealDB.ConnectionUnavailableError SurrealDB._check_open(sess)
             @test_throws SurrealDB.ConnectionUnavailableError SurrealDB.begin!(sess)
-            @test_throws SurrealDB.ConnectionUnavailableError SurrealDB.commit!(sess, Base.UUID(UInt128(2)))
-            @test_throws SurrealDB.ConnectionUnavailableError SurrealDB.cancel!(sess, Base.UUID(UInt128(2)))
+            # SurrealTransaction wrapper: construct directly (bypass begin!) to
+            # exercise the txn-side guard on a closed session.
+            fake_txn = SurrealDB.SurrealTransaction{typeof(client.connection)}(
+                sess, Base.UUID(UInt128(2)), false)
+            @test_throws SurrealDB.ConnectionUnavailableError SurrealDB.commit!(fake_txn)
+            @test_throws SurrealDB.ConnectionUnavailableError SurrealDB.cancel!(fake_txn)
 
             # Client still works (until we close it).
             SurrealDB._check_open(client)

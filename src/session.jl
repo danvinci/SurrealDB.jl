@@ -137,38 +137,77 @@ function close!(session::SurrealSession{<:RemoteWSConnection})
 end
 
 """
-    begin!(session::SurrealSession)
+    SurrealTransaction
 
-Start a transaction within a v3+ session.
+A v3+ interactive transaction handle. Returned by [`begin!(session)`](@ref).
+Call [`commit!(txn)`](@ref) or [`cancel!(txn)`](@ref) to finalize; either
+flips `txn.closed = true` so a stale handle can't be re-committed against a
+server-side transaction that no longer exists.
 
-Returns the transaction UUID. Pass this to [`commit!`](@ref) or [`cancel!`](@ref).
+Matches the wrapper pattern used by surrealdb-go (`Transaction` struct with
+`closed bool`, sdk-refs/go/transaction.go:24) and surrealdb-js
+(`SurrealTransaction extends SurrealQueryable`, sdk-refs/js/.../api/transaction.ts:13).
 """
-function begin!(session::SurrealSession{<:RemoteWSConnection})
-    _check_open(session)
-    result = _rpc_call(session.client, "begin", Any[]; session=session.session_id)
-    txn_id = result isa String ? UUIDs.UUID(result) :
-             result isa UUIDs.UUID ? result : UUIDs.UUID(string(result))
-    return txn_id
+mutable struct SurrealTransaction{C<:AbstractConnection}
+    session::SurrealSession{C}
+    txn_id::UUID
+    closed::Bool
 end
 
-"""
-    commit!(session::SurrealSession, txn_id)
+Base.show(io::IO, t::SurrealTransaction) =
+    print(io, "SurrealTransaction(", t.txn_id, t.closed ? ", closed" : "", ")")
 
-Commit a transaction within a v3+ session.
-"""
-function commit!(session::SurrealSession{<:RemoteWSConnection}, txn_id)
-    _check_open(session)
-    _rpc_call(session.client, "commit", Any[]; session=session.session_id, txn=txn_id)
+function _check_open(t::SurrealTransaction)
+    _check_open(t.session)
+    t.closed && throw(ConnectionUnavailableError(
+        "SurrealTransaction has already been committed or cancelled."))
     return nothing
 end
 
 """
-    cancel!(session::SurrealSession, txn_id)
+    begin!(session::SurrealSession) -> SurrealTransaction
 
-Cancel/rollback a transaction within a v3+ session.
+Start a transaction within a v3+ session. Returns a [`SurrealTransaction`](@ref)
+handle; pass it to [`commit!`](@ref) or [`cancel!`](@ref) to finalize.
 """
-function cancel!(session::SurrealSession{<:RemoteWSConnection}, txn_id)
+function begin!(session::SurrealSession{C}) where {C<:RemoteWSConnection}
     _check_open(session)
-    _rpc_call(session.client, "cancel", Any[]; session=session.session_id, txn=txn_id)
+    result = _rpc_call(session.client, "begin", Any[]; session=session.session_id)
+    txn_id = result isa String ? UUIDs.UUID(result) :
+             result isa UUIDs.UUID ? result : UUIDs.UUID(string(result))
+    return SurrealTransaction{C}(session, txn_id, false)
+end
+
+"""
+    commit!(txn::SurrealTransaction)
+
+Commit a v3+ session transaction. Flips `txn.closed = true` even if the RPC
+throws, so a stale handle can't be re-used.
+"""
+function commit!(txn::SurrealTransaction{<:RemoteWSConnection})
+    _check_open(txn)
+    try
+        _rpc_call(txn.session.client, "commit", Any[];
+                  session=txn.session.session_id, txn=txn.txn_id)
+    finally
+        txn.closed = true
+    end
+    return nothing
+end
+
+"""
+    cancel!(txn::SurrealTransaction)
+
+Cancel/rollback a v3+ session transaction. Flips `txn.closed = true` even if
+the RPC throws.
+"""
+function cancel!(txn::SurrealTransaction{<:RemoteWSConnection})
+    _check_open(txn)
+    try
+        _rpc_call(txn.session.client, "cancel", Any[];
+                  session=txn.session.session_id, txn=txn.txn_id)
+    finally
+        txn.closed = true
+    end
     return nothing
 end

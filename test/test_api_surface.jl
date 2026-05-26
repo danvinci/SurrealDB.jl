@@ -25,7 +25,7 @@ const EXPECTED_EXPORTS = Set([
 
     # Core types
     :AbstractConnection, :RemoteConnection, :EmbeddedConnection,
-    :SurrealClient, :SurrealSession,
+    :SurrealClient, :SurrealSession, :SurrealTransaction,
     :RecordID, :StringRecordID, :Table, :SurrealValue, :Relationship, :LiveSubscription, :LiveNotification,
     Symbol("@rid_str"),
 
