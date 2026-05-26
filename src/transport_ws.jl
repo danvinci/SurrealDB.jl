@@ -260,10 +260,22 @@ function _ws_reader_task(conn::RemoteWSConnection)
         if haskey(msg, "id") && !isnothing(msg["id"])
             rid = msg["id"]
             @debug "SurrealDB ws RPC ←" rid=rid has_error=haskey(msg, "error")
-            lock(conn.lock) do
-                ch = get(conn.response_channels, rid, nothing)
-                if !isnothing(ch) && isopen(ch)
+            # Snapshot the channel under the lock, then `put!` outside. Holding
+            # `conn.lock` across `put!` on a 1-cap channel would deadlock the
+            # writer / RPC-registration paths if the channel were already full
+            # (caller raced to tear it down) — same shape as the snapshot-then-
+            # signal pattern in `_drain_and_signal_response_channels!` below.
+            ch = lock(conn.lock) do
+                get(conn.response_channels, rid, nothing)
+            end
+            if !isnothing(ch) && isopen(ch)
+                try
                     put!(ch, msg)
+                catch e
+                    # Channel closed between snapshot and put — caller raced to
+                    # tear down. Drop; the caller will surface the timeout / drop
+                    # via its own error path.
+                    e isa InvalidStateException || rethrow()
                 end
             end
         elseif get(msg, "method", "") == "notify"
