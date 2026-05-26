@@ -141,6 +141,20 @@ end
 # Adding a new mechanical RPC: one line in the table. Special-case arms with
 # genuine per-method logic (query / relate / patch / live / kill / signin /
 # signup / let) stay as branches below the table dispatch.
+# Methods reachable on an EmbeddedConnection that libsurreal_c doesn't expose.
+# Throwing UnsupportedFeatureError names the gap; the generic else-arm at the
+# bottom of _embedded_rpc_call would otherwise mask these as the same
+# "Unsupported method" error as a true typo. `attach` / `detach` / `sessions`
+# are also listed for defense-in-depth even though their public API is already
+# constrained to RemoteWSConnection at the call site.
+const _EMBEDDED_UNSUPPORTED = ("run", "info", "ping", "refresh",
+                               "attach", "detach", "sessions")
+
+# Special-case method names handled by the if/elseif chain below the dispatch
+# table. Source of truth for the coverage test in test_wire.jl.
+const _EMBEDDED_SPECIAL_CASE = ("query", "relate", "patch", "live", "kill",
+                                "signin", "signup", "let")
+
 const _RPC_ARMS = Dict{String, Tuple{Function, Symbol}}(
     "create"          => (LibSurreal.sr_create,          :coerce_first_with_rest),
     "select"          => (LibSurreal.sr_select,          :coerce_first),
@@ -177,6 +191,9 @@ function SurrealDB._embedded_rpc_call(conn::EmbeddedConnection, method::String, 
     # methods.jl can pass typed values through unmodified for the CBOR wire
     # path (system-design-principles.md § Boundary discipline).
     # Locking is done inside each sr_* call in libsurreal.jl
+
+    method in _EMBEDDED_UNSUPPORTED &&
+        throw(SurrealDB.UnsupportedFeatureError(Symbol(method), :embedded))
 
     arm = get(_RPC_ARMS, method, nothing)
     isnothing(arm) || return _dispatch_rpc_arm(arm, conn, params)

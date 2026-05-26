@@ -298,3 +298,30 @@ end
         MockWS.stop_mock!(mock)
     end
 end
+
+@testset "wire: embedded transport covers every RPC method" begin
+    # Drift detector for the embedded dispatcher. SurrealDB._RPC_METHODS is the
+    # canonical set of every RPC method the SDK invokes via `_rpc_call`. Every
+    # entry must be dispatched on EmbeddedConnection — either via the _RPC_ARMS
+    # table, a special-case branch, or an explicit UnsupportedFeatureError. A
+    # silent fall-through to the generic else-arm is the drift we want to catch.
+    table_keys = Set(keys(SurrealDB.Embedded._RPC_ARMS))
+    special    = Set(SurrealDB.Embedded._EMBEDDED_SPECIAL_CASE)
+    unsupp     = Set(SurrealDB.Embedded._EMBEDDED_UNSUPPORTED)
+
+    # Coverage: every wire-known method lives in exactly one of the three sets.
+    for m in SurrealDB._RPC_METHODS
+        @test m in table_keys || m in special || m in unsupp
+    end
+
+    # Disjointness: a method handled twice is a wiring bug.
+    @test isempty(intersect(table_keys, special))
+    @test isempty(intersect(table_keys, unsupp))
+    @test isempty(intersect(special, unsupp))
+
+    # No spurious entries — every embedded-listed method must also be in the
+    # wire-level set (catches stale entries when an SDK call is removed).
+    @test issubset(table_keys, Set(SurrealDB._RPC_METHODS))
+    @test issubset(special,    Set(SurrealDB._RPC_METHODS))
+    @test issubset(unsupp,     Set(SurrealDB._RPC_METHODS))
+end

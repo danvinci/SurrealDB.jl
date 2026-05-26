@@ -9,6 +9,25 @@
 # WebSocket frame type / HTTP body type from this Julia type, so callers just
 # pass the payload through unchanged.
 
+# --- RPC method-name set ---
+#
+# Source of truth for "every RPC method the SDK dispatches via `_rpc_call`."
+# Both transport adapters (`_http_adapt_method` in transport_http.jl, the
+# `_RPC_ARMS` table + special-case branches in embedded.jl) must handle every
+# entry — either dispatch directly, or throw `UnsupportedFeatureError` with
+# the gap named. A coverage test in test_wire.jl walks this set against the
+# embedded dispatcher so adding a new RPC requires an explicit per-transport
+# decision rather than silently throwing "Unsupported method: $name".
+const _RPC_METHODS = (
+    "query", "select", "create", "update", "delete",
+    "insert", "upsert", "merge", "relate", "insert_relation",
+    "live", "kill", "run", "info", "patch",
+    "signin", "signup", "authenticate", "invalidate", "refresh",
+    "let", "unset", "begin", "commit", "cancel",
+    "version", "health", "export", "import", "ping",
+    "attach", "detach", "sessions",
+)
+
 # --- Wire-typed channel factory ---
 #
 # WS writer drains a `Channel` whose element type matches the wire payload:
