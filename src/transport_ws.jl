@@ -101,6 +101,29 @@ function _ws_reconnect_loop(conn::RemoteWSConnection)
     return nothing
 end
 
+# --- Live subscription dispatch (RemoteWSConnection) ---
+#
+# Concrete methods for `_register_live!` / `_deregister_live!` (stubs in
+# connection.jl). All three live-query Dicts are mutated under live_lock to
+# serialize against the user-thread kill! / live() and the reconnect loop.
+
+function _register_live!(conn::RemoteWSConnection, sub::LiveSubscription, table, diff::Bool)
+    lock(conn.live_lock) do
+        conn.notification_channels[sub.query_id] = sub.channel
+        conn.live_subscriptions[sub.query_id] = (table, diff)
+        conn.live_handles[sub.query_id] = sub
+    end
+    return nothing
+end
+
+function _deregister_live!(conn::RemoteWSConnection, query_id::String)
+    lock(conn.live_lock) do
+        delete!(conn.notification_channels, query_id)
+        delete!(conn.live_subscriptions, query_id)
+        pop!(conn.live_handles, query_id, nothing)
+    end
+end
+
 function _reconnect_apply_state!(conn::RemoteWSConnection)
     client = conn.client
     if isnothing(client)

@@ -921,6 +921,8 @@ function _close_backend! end
 function _use_backend! end
 function _embedded_rpc_call end
 function _connect_embedded! end
+function _register_live! end
+function _deregister_live! end
 
 function _close_backend!(conn::RemoteConnection)
     _close_remote!(conn)

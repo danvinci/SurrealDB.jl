@@ -251,6 +251,22 @@ end
 
 # --- Live query polling (called from live.jl) ---
 
+function SurrealDB._register_live!(conn::EmbeddedConnection,
+                                   sub::SurrealDB.LiveSubscription,
+                                   table, diff::Bool)
+    lock(conn.lock) do
+        conn.live_handles[sub.query_id] = sub
+    end
+    @async SurrealDB._poll_embedded_live(conn, sub.query_id, sub.channel)
+    return nothing
+end
+
+function SurrealDB._deregister_live!(conn::EmbeddedConnection, query_id::String)
+    lock(conn.lock) do
+        pop!(conn.live_handles, query_id, nothing)
+    end
+end
+
 function SurrealDB._poll_embedded_live(conn::EmbeddedConnection, query_id::String, ch::Channel)
     stream = get(conn.live_streams, query_id, nothing)
     if isnothing(stream)

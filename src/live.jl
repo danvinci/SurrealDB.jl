@@ -25,28 +25,8 @@ SurrealDB.kill!(sub)
 function live(client::SurrealClient{C}, table; diff::Bool=false) where {C<:AbstractConnection}
     result = _rpc_call(client, "live", Any[table, diff])
     query_id = result isa String ? result : string(result)
-
-    # Create channel for notifications
-    ch = Channel{Any}(32)
-    sub = LiveSubscription(query_id, ch, client, true)
-
-    # Register channel + handle on the connection so kill!-by-id can find it.
-    # All three live-query Dicts are mutated under one lock per backend to
-    # serialize against concurrent kill! and (WS only) the reconnect loop.
-    if client.connection isa RemoteWSConnection
-        lock(client.connection.live_lock) do
-            client.connection.notification_channels[query_id] = ch
-            client.connection.live_subscriptions[query_id] = (table, diff)
-            client.connection.live_handles[query_id] = sub
-        end
-    elseif client.connection isa EmbeddedConnection
-        lock(client.connection.lock) do
-            client.connection.live_handles[query_id] = sub
-        end
-        # Embedded mode: spawn a task to poll the stream
-        @async _poll_embedded_live(client.connection, query_id, ch)
-    end
-
+    sub = LiveSubscription(query_id, Channel{Any}(32), client, true)
+    _register_live!(client.connection, sub, table, diff)
     return sub
 end
 
@@ -61,18 +41,7 @@ the termination.
 function kill!(client::SurrealClient{C}, query_id::String) where {C<:AbstractConnection}
     # Tear down local state first so sub.active is always flipped, even if the
     # RPC call fails (e.g. embedded path sends a pointer string as the UUID).
-    sub = nothing
-    if client.connection isa RemoteWSConnection
-        sub = lock(client.connection.live_lock) do
-            delete!(client.connection.notification_channels, query_id)
-            delete!(client.connection.live_subscriptions, query_id)
-            pop!(client.connection.live_handles, query_id, nothing)
-        end
-    elseif client.connection isa EmbeddedConnection
-        sub = lock(client.connection.lock) do
-            pop!(client.connection.live_handles, query_id, nothing)
-        end
-    end
+    sub = _deregister_live!(client.connection, query_id)
     if !isnothing(sub)
         sub.active = false
         try; close(sub.channel); catch; end
@@ -94,4 +63,6 @@ end
 
 # Stub — concrete method added by embedded.jl (qualified as
 # `SurrealDB._poll_embedded_live`) so dispatch crosses the module boundary.
+# Backend-specific live registration/deregistration stubs live in
+# connection.jl alongside `_close_backend!` / `_use_backend!`.
 function _poll_embedded_live end
