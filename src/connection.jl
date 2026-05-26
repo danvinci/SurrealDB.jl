@@ -562,6 +562,7 @@ function connect(url::String;
                  ping_interval::Float64=30.0,
                  tls_verify::Bool=true,
                  rpc_timeout::Float64=30.0,
+                 connect_timeout::Float64=10.0,
                  refresh_lead_time::Float64=30.0,
                  wire::Symbol=:cbor,
                  check_version::Bool=true,
@@ -613,15 +614,18 @@ function connect(url::String;
                                logger=logger)
         _connect_remote!(conn)
         if is_ws
-            for _ in 1:50
-                conn.status == STATUS_CONNECTED && break
+            # Poll the reader-task-driven status until CONNECTED or the budget
+            # is exhausted. `connect_timeout` is the WS-handshake-plus-first-
+            # heartbeat budget; distinct from `rpc_timeout` (per-RPC deadline).
+            deadline = time() + connect_timeout
+            while conn.status != STATUS_CONNECTED && time() < deadline
                 sleep(0.05)
             end
             if conn.status != STATUS_CONNECTED
                 cause = conn.last_error
                 msg = isnothing(cause) ?
-                    "Failed to connect to $ws_url" :
-                    "Failed to connect to $ws_url: $(sprint(showerror, cause))"
+                    "Failed to connect to $ws_url within $(connect_timeout)s" :
+                    "Failed to connect to $ws_url within $(connect_timeout)s: $(sprint(showerror, cause))"
                 throw(ConnectionError(msg, cause))
             end
         end
