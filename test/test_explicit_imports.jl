@@ -1,34 +1,78 @@
 # ExplicitImports.jl lint pass — catches future import-discipline drift.
 #
-# Today only the "imports via owners" check is asserted clean; the two
-# stricter checks document known gaps (commented below). The drift-detector
-# value is in the "via owners" assertion — if a future edit imports a symbol
-# via a re-exporter rather than the canonical owner, this test catches it
-# before the implicit re-export contract breaks.
+# Three checks run against SurrealDB + every analyzable submodule:
+#   - implicit-imports: every `using` line must enumerate names explicitly
+#   - owner-canonicality: explicit imports must come from the owning module
+#   - no-stale-explicit-imports: imports must actually be used
+#
+# The 42 names in `_EMBEDDED_REEXPORTS` are deliberately imported from the
+# Embedded submodule into SurrealDB so callers (and tests) can drop the
+# `Embedded.` qualifier — `SurrealDB.julia_to_surreal_value(...)` reads
+# cleaner than `SurrealDB.Embedded.julia_to_surreal_value(...)`. They appear
+# stale to ExplicitImports because nothing in SurrealDB's own body uses them
+# unqualified. The ignore list preserves the convention without losing the
+# drift-detection on every OTHER import.
 
 using SurrealDB
 using ExplicitImports
 using Test
 
+# The Embedded submodule's user/test-facing surface re-exposed under
+# SurrealDB.NAME for ergonomics. Add a name here only when adding a new
+# Embedded export that should appear unqualified at the SurrealDB level.
+const _EMBEDDED_REEXPORTS = (
+    :EmbeddedConnection, :libsurreal_load!, :embedded_connect,
+    :julia_to_surreal_value, :surreal_value_to_julia,
+    :julia_to_c_value, :c_value_to_julia,
+    :SurrealThing,
+    :CValueTag, :CNumberTag, :CGeometryTag, :CScope, :CAction,
+    :C_VALUE_NONE, :C_VALUE_NULL, :C_VALUE_BOOL, :C_VALUE_NUMBER,
+    :C_VALUE_STRAND, :C_VALUE_DURATION, :C_VALUE_DATETIME, :C_VALUE_UUID,
+    :C_VALUE_ARRAY, :C_VALUE_OBJECT, :C_VALUE_GEOMETRY, :C_VALUE_BYTES,
+    :C_VALUE_THING,
+    :C_NUMBER_INT, :C_NUMBER_FLOAT, :C_NUMBER_DECIMAL,
+    :C_GEOM_POINT, :C_GEOM_LINESTRING, :C_GEOM_POLYGON,
+    :C_GEOM_MULTIPOINT, :C_GEOM_MULTILINE, :C_GEOM_MULTIPOLYGON,
+    :C_GEOM_COLLECTION, :C_GEOM_UNIMPLEMENTED,
+    :C_SCOPE_ROOT, :C_SCOPE_NAMESPACE, :C_SCOPE_DATABASE, :C_SCOPE_RECORD,
+    :C_ACTION_CREATE, :C_ACTION_UPDATE, :C_ACTION_DELETE,
+    :C_ACTION_KILLED, :C_ACTION_UNIMPLEMENTED,
+)
+
+const _LINTED_MODULES = (
+    SurrealDB,
+    SurrealDB.SurrealCBOR,
+    SurrealDB.SurrealTypes,
+    SurrealDB.Embedded,
+    SurrealDB.Embedded.LibSurreal,
+)
+
+@testset "no implicit imports" begin
+    # Every `using Foo` line names what it brings in. Catches the case where
+    # adding a new `using Foo` quietly pulls in a name the rest of the file
+    # accidentally relies on.
+    for m in _LINTED_MODULES
+        @test isnothing(ExplicitImports.check_no_implicit_imports(m))
+    end
+end
+
 @testset "explicit imports come from owners" begin
     # Every explicit `using Foo: bar` must have Foo as the canonical owner of
     # `bar` — not a re-exporter. Catches the case where a peer module changes
     # what it re-exports and our import silently follows along.
-    @test isnothing(ExplicitImports.check_all_explicit_imports_via_owners(SurrealDB))
+    for m in _LINTED_MODULES
+        @test isnothing(ExplicitImports.check_all_explicit_imports_via_owners(m))
+    end
 end
 
-# Two stricter checks are intentionally NOT asserted yet:
-#
-#   - `check_no_implicit_imports(SurrealDB)` — src/SurrealDB.jl uses bare
-#     `using Foo` for Base64, Dates, HTTP, JSON, StructTypes, Tables, UUIDs.
-#     Converting each to an explicit name list is mechanical but is its own
-#     audit pass; enable once that lands.
-#
-#   - `check_no_stale_explicit_imports(SurrealDB)` — the `using .Embedded: ...`
-#     block at the bottom of SurrealDB.jl re-binds ~42 submodule symbols at
-#     the parent level so test sites can write `SurrealDB.C_VALUE_NONE` in
-#     place of `SurrealDB.Embedded.C_VALUE_NONE`. ExplicitImports rightly
-#     flags these as "stale" (imported but unused in SurrealDB's own body) —
-#     but they're load-bearing for the convention. Either pin the ignore list
-#     or rework the re-export pattern via `Base.getproperty(::Module, ...)`
-#     before enabling.
+@testset "no stale explicit imports" begin
+    # Catches imports that no longer have any use site. The SurrealDB-level
+    # check ignores the `_EMBEDDED_REEXPORTS` re-export block (see top of
+    # file for rationale).
+    @test isnothing(ExplicitImports.check_no_stale_explicit_imports(SurrealDB;
+        ignore=_EMBEDDED_REEXPORTS))
+    @test isnothing(ExplicitImports.check_no_stale_explicit_imports(SurrealDB.SurrealCBOR))
+    @test isnothing(ExplicitImports.check_no_stale_explicit_imports(SurrealDB.SurrealTypes))
+    @test isnothing(ExplicitImports.check_no_stale_explicit_imports(SurrealDB.Embedded))
+    @test isnothing(ExplicitImports.check_no_stale_explicit_imports(SurrealDB.Embedded.LibSurreal))
+end

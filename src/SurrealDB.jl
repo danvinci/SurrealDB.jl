@@ -96,22 +96,17 @@ module Embedded
 import ..SurrealDB
 using ..SurrealDB:
     AbstractConnection, LiveSubscription, RecordID,
-    SurrealValue, SurrealValueKind,
+    SurrealValue,
     SR_NONE, SR_NULL, SR_BOOL, SR_INT, SR_FLOAT, SR_DECIMAL,
     SR_STRING, SR_DATETIME, SR_DURATION, SR_UUID, SR_ARRAY,
     SR_OBJECT, SR_BYTES, SR_THING, SR_GEOMETRY,
     ConnectionError, EmbeddedFFIError,
-    LifecycleEvent,
-    # Stub functions defined in connection.jl/live.jl whose methods are
-    # added below for EmbeddedConnection. Importing the names into Embedded
-    # lets internal Embedded code (e.g. `_connect_embedded!(conn, url)` from
-    # `embedded_connect()`) resolve to the parent's stub binding so dispatch
-    # finds the EmbeddedConnection method.
-    _connect_embedded!, _close_backend!, _use_backend!,
-    _embedded_rpc_call, _poll_embedded_live,
-    _register_live!, _deregister_live!,
-    # Helper used by embedded.jl from the parent scope
-    kill!
+    # `_connect_embedded!` is invoked unqualified from `embedded_connect()`
+    # (the SurrealDB-level stub; concrete method is added below). Other
+    # SurrealDB-level stubs (`_close_backend!`, `_register_live!`, etc.) are
+    # only extended via `function SurrealDB.<name>(...) ... end` and don't
+    # need a local binding.
+    _connect_embedded!
 
 using JSON: JSON
 using Dates: Dates, DateTime
