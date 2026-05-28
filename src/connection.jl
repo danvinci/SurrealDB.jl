@@ -204,7 +204,7 @@ Base.@kwdef mutable struct RemoteConnection{P, W} <: AbstractRemoteConnection
     live_lock::ReentrantLock = ReentrantLock()
     "live query_id → (table, diff) — used by `_reconnect_apply_state!` to re-issue subscriptions on reconnect. `table` is stored as the caller-supplied type (`String` / `Table` / `RecordID`) so reconnect replay preserves CBOR tag fidelity."
     live_subscriptions::Dict{String, Tuple{Any, Bool}} = Dict{String, Tuple{Any, Bool}}()
-    "live query_id → LiveSubscription handle — used by `kill!(client, qid)` to flip caller-held state"
+    "live query_id → `LiveSubscription` handle (defined in live.jl) — used by `kill!(client, qid)` to flip caller-held state. Value type is `Any` to break the connection→live load-order cycle."
     live_handles::Dict{String, Any} = Dict{String, Any}()
     "Background reader task; drains WS messages and dispatches to response/notification channels"
     reader_task::Union{Task, Nothing} = nothing
@@ -298,8 +298,8 @@ mutable struct SurrealClient{C<:AbstractConnection}
     database::Union{String, Nothing}
     "JWT token from the most recent successful signin/authenticate; `nothing` when unauthenticated. Mirrors `tokens.access` when `tokens !== nothing` — kept as a flat String for reconnect-replay simplicity."
     token::Union{String, Nothing}
-    "Typed access+refresh pair when the server issued one (`WITH REFRESH` scopes); `nothing` otherwise. Public accessor: [`tokens`](@ref)."
-    tokens::Union{Any, Nothing}
+    "Typed access+refresh pair (`Tokens` from auth.jl) when the server issued one (`WITH REFRESH` scopes); `nothing` otherwise. Field is `Any` to break the connection→auth load-order cycle. Public accessor: [`tokens`](@ref)."
+    tokens::Any
     "Session variables set via `let!` — used for state inspection and reconnect re-application"
     variables::Dict{String, Any}
     "Set to `true` by `close!`; every RPC entry checks this and throws `ConnectionUnavailableError` rather than silently producing nil-field downstream errors."
