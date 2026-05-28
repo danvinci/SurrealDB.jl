@@ -2,7 +2,7 @@
 
 [![Test](https://github.com/danvinci/SurrealDB.jl/actions/workflows/test.yml/badge.svg)](https://github.com/danvinci/SurrealDB.jl/actions/workflows/test.yml)
 [![Benchmark](https://github.com/danvinci/SurrealDB.jl/actions/workflows/bench.yml/badge.svg)](https://github.com/danvinci/SurrealDB.jl/actions/workflows/bench.yml)
-[![Interop](https://github.com/danvinci/SurrealDB.jl/actions/workflows/interop.yml/badge.svg)](https://github.com/danvinci/SurrealDB.jl/actions/workflows/interop.yml)
+[![Conformance](https://github.com/danvinci/SurrealDB.jl/actions/workflows/conformance.yml/badge.svg)](https://github.com/danvinci/SurrealDB.jl/actions/workflows/conformance.yml)
 [![Docs](https://github.com/danvinci/SurrealDB.jl/actions/workflows/docs.yml/badge.svg)](https://danvinci.github.io/SurrealDB.jl/dev/)
 [![codecov](https://codecov.io/gh/danvinci/SurrealDB.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/danvinci/SurrealDB.jl)
 
@@ -21,7 +21,7 @@ Pkg.add(url="https://github.com/danvinci/SurrealDB.jl", rev="v0.2.0-alpha.1")
 ```
 
 Not yet in the General registry.
-The embedded backend needs `libsurreal`; see [Embedded mode](https://danvinci.github.io/SurrealDB.jl/dev/integrations/#Embedded-mode).
+The embedded backend needs `libsurreal`; see [Embedded mode](https://danvinci.github.io/SurrealDB.jl/dev/debugging/#Embedded-mode).
 
 ## Quickstart
 
@@ -75,7 +75,7 @@ Full reference at [danvinci.github.io/SurrealDB.jl](https://danvinci.github.io/S
 - [Reconnect](https://danvinci.github.io/SurrealDB.jl/dev/reconnect/): tuning, lifecycle observability, closed-handle semantics
 - [Errors](https://danvinci.github.io/SurrealDB.jl/dev/errors/): typed hierarchy
 - [Integrations](https://danvinci.github.io/SurrealDB.jl/dev/integrations/): StructTypes, Tables.jl, MetaGraphsNext
-- [API reference](https://danvinci.github.io/SurrealDB.jl/dev/api/): full surface
+- [API reference](https://danvinci.github.io/SurrealDB.jl/dev/api/connection/): full surface
 
 ## Cross-SDK conformance
 
@@ -93,11 +93,32 @@ The comparative reference set includes [Go](https://github.com/surrealdb/surreal
 ## Testing
 
 ```bash
+# SDK suite (fast, offline, prereq-self-skipping):
 julia --project=test test/runtests.jl
+
+# Conformance suites (cross-SDK + upstream language-tests + wire):
+bash scripts/setup-upstream.sh
+bash scripts/setup-server.sh
+bash scripts/run-conformance.sh
+
+# Surgical iteration on a single file:
+julia --project=test test/sdk/cbor/test_cbor_io.jl
 ```
 
 Unit layer needs no network; integration needs `surreal start --bind 127.0.0.1:8001`; embedded needs `libsurreal`.
 Layers self-skip when prerequisites are missing.
+
+## Development
+
+```
+scripts/setup-upstream.sh      # clone upstream test corpus (sparse-blobless)
+scripts/setup-sdk-refs.sh      # clone peer SDKs (Go/Py/JS/.NET) for reference reading
+scripts/setup-server.sh        # provision surreal binary
+scripts/regen-cbor-fixtures.sh # regenerate Rust CBOR fixtures (run after corpus changes)
+scripts/run-conformance.sh     # orchestrate the conformance suites
+```
+
+All idempotent and identical local/CI.
 
 ## Roadmap
 

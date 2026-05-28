@@ -27,7 +27,7 @@ makedocs(;
     ],
     format = Documenter.HTML(;
         prettyurls = get(ENV, "CI", "false") == "true",
-        canonical = "https://danvinci.github.io/surrealdb/",
+        canonical = "https://danvinci.github.io/SurrealDB.jl/",
         edit_link = "main",
         assets = String[],
     ),
@@ -37,7 +37,7 @@ makedocs(;
 )
 
 deploydocs(;
-    repo = "github.com/danvinci/surrealdb",
+    repo = "github.com/danvinci/SurrealDB.jl",
     devbranch = "main",
     push_preview = false,
 )
