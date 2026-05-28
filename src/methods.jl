@@ -1,5 +1,25 @@
 # Data manipulation methods for SurrealDB.jl
 
+# --- Relationship ---
+
+"""
+    Relationship(in, relation, out; data=Dict())
+
+Represents a graph relationship between two records.
+
+# Examples
+```julia
+rel = Relationship("person:john", Table("knows"), "person:jane",
+                    data=Dict("met" => "2024-01-01"))
+```
+"""
+struct Relationship
+    rel_in::Union{RecordID, String}
+    relation::Table
+    rel_out::Union{RecordID, String}
+    data::Dict{String, Any}
+end
+
 # Internal representation of a single query statement result.
 # `error` widened to ServerError post-D1: _parse_query_error dispatches on
 # the wire `kind` field and may return any kind-tagged subclass

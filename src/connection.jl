@@ -205,7 +205,7 @@ Base.@kwdef mutable struct RemoteConnection{P, W} <: AbstractRemoteConnection
     "live query_id → (table, diff) — used by `_reconnect_apply_state!` to re-issue subscriptions on reconnect. `table` is stored as the caller-supplied type (`String` / `Table` / `RecordID`) so reconnect replay preserves CBOR tag fidelity."
     live_subscriptions::Dict{String, Tuple{Any, Bool}} = Dict{String, Tuple{Any, Bool}}()
     "live query_id → LiveSubscription handle — used by `kill!(client, qid)` to flip caller-held state"
-    live_handles::Dict{String, LiveSubscription} = Dict{String, LiveSubscription}()
+    live_handles::Dict{String, Any} = Dict{String, Any}()
     "Background reader task; drains WS messages and dispatches to response/notification channels"
     reader_task::Union{Task, Nothing} = nothing
     "Back-reference to the SurrealClient — used by reconnect to re-apply auth/use!/live state"
@@ -299,7 +299,7 @@ mutable struct SurrealClient{C<:AbstractConnection}
     "JWT token from the most recent successful signin/authenticate; `nothing` when unauthenticated. Mirrors `tokens.access` when `tokens !== nothing` — kept as a flat String for reconnect-replay simplicity."
     token::Union{String, Nothing}
     "Typed access+refresh pair when the server issued one (`WITH REFRESH` scopes); `nothing` otherwise. Public accessor: [`tokens`](@ref)."
-    tokens::Union{Tokens, Nothing}
+    tokens::Union{Any, Nothing}
     "Session variables set via `let!` — used for state inspection and reconnect re-application"
     variables::Dict{String, Any}
     "Set to `true` by `close!`; every RPC entry checks this and throws `ConnectionUnavailableError` rather than silently producing nil-field downstream errors."

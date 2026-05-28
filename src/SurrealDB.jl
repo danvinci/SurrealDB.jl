@@ -57,7 +57,7 @@ export EmbeddedFFIError, ConnectionUnavailableError, MissingNamespaceDatabaseErr
 # Owned at the parent level so codec submodules (SurrealCBOR today, future
 # JSON-typed) extend `encode` on these types without piracy. Substrate-isolated:
 # stdlib-only deps, no upward imports.
-include("types/SurrealTypes.jl")
+include("surreal_types.jl")
 using .SurrealTypes: RecordID, StringRecordID, Table, @rid_str,
     SurrealDecimal, SurrealDateTime, SurrealDuration, SurrealFile,
     SurrealRange, BoundIncluded, BoundExcluded,
@@ -72,21 +72,21 @@ using .SurrealTypes: RecordID, StringRecordID, Table, @rid_str,
 include("cbor/SurrealCBOR.jl")
 
 include("errors.jl")
-include("types.jl")
+include("ffi_values.jl")
 include("connection.jl")
 include("wire.jl")
+include("live.jl")
 include("transport_ws.jl")
 include("transport_http.jl")
 include("auth.jl")
 include("methods.jl")
 include("session.jl")
-include("live.jl")
 
 # --- Embedded submodule (FFI cluster) ---
 # Wraps ffi_types + libsurreal + embedded. Internal helpers stay scoped here;
 # user-facing symbols (EmbeddedConnection, libsurreal_load!) are re-imported
 # below. Functions and types referenced from tests (julia_to_surreal_value,
-# SurrealValue/SR_*/etc. that live in types.jl, EmbeddedFFIError) are imported
+# SurrealValue/SR_*/etc. that live in ffi_values.jl, EmbeddedFFIError) are imported
 # back into SurrealDB so existing call paths keep working.
 module Embedded
 
