@@ -1,6 +1,7 @@
 using SurrealDB
 using Test
 using Sockets
+using StructTypes  # test_types.jl extends StructType; needs module-scope visibility
 
 include("setup.jl")
 

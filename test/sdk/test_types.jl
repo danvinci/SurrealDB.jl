@@ -1,4 +1,4 @@
-using StructTypes
+# StructTypes imported at runtests.jl top.
 
 @testset "Show methods" begin
     # Compact show output for human-readable REPL printing.
