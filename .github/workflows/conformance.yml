@@ -1,0 +1,112 @@
+name: Conformance
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  UPSTREAM_TAG: v3.0.4
+
+jobs:
+  cross-sdk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: '1'
+      - uses: julia-actions/cache@v2
+      - uses: julia-actions/julia-buildpkg@v1
+      - name: Instantiate test env
+        run: julia --project=test -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate()'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install surrealdb-py
+        run: pip install --upgrade pip && pip install surrealdb
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+      - name: Provision server
+        run: bash scripts/setup-server.sh
+      - name: Forward — Python writes fixtures
+        run: python test/conformance/cross-sdk/write_test_data.py
+        env:
+          SURREALDB_URL: ws://localhost:8000/rpc
+      - name: Forward — Julia reads, asserts equal
+        run: julia --project=test test/conformance/cross-sdk/test_interop.jl
+        env:
+          SURREALDB_URL: ws://localhost:8000
+      - name: Reverse — Julia writes fixtures
+        run: julia --project=test test/conformance/cross-sdk/write_test_data_julia.jl
+        env:
+          SURREALDB_URL: ws://localhost:8000
+      - name: Reverse — Python reads, asserts equal
+        run: python test/conformance/cross-sdk/read_test_data.py
+        env:
+          SURREALDB_URL: ws://localhost:8000/rpc
+      - name: Reverse — Go reads, asserts equal
+        run: |
+          mkdir -p /tmp/go-interop && cd /tmp/go-interop
+          go mod init interop 2>/dev/null || true
+          go get github.com/surrealdb/surrealdb.go@latest
+          cp ${{ github.workspace }}/test/conformance/cross-sdk/read_test_data.go main.go
+          go run main.go
+        env:
+          SURREALDB_URL: ws://localhost:8000
+
+  language-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: '1'
+      - uses: julia-actions/cache@v2
+      - uses: julia-actions/julia-buildpkg@v1
+      - name: Instantiate test env
+        run: julia --project=test -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate()'
+      - name: Cache upstream checkout
+        uses: actions/cache@v4
+        with:
+          path: external/upstream
+          key: upstream-${{ env.UPSTREAM_TAG }}
+      - name: Setup upstream corpus
+        run: bash scripts/setup-upstream.sh
+      - name: Provision server
+        run: bash scripts/setup-server.sh
+      - name: Run language-tests
+        run: julia --project=test test/conformance/language-tests/runner.jl
+
+  wire:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: '1'
+      - uses: julia-actions/cache@v2
+      - uses: julia-actions/julia-buildpkg@v1
+      - name: Instantiate test env
+        run: julia --project=test -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate()'
+      - name: Provision server
+        run: bash scripts/setup-server.sh
+      - name: Run wire suite
+        run: |
+          julia --project=test -e "
+            wire_dir = joinpath(pwd(), \"test\", \"conformance\", \"wire\")
+            for f in sort(readdir(wire_dir, join=true))
+                endswith(f, \".jl\") && include(f)
+            end
+          "
+
+  parity-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Regenerate CBOR fixtures
+        run: bash scripts/regen-cbor-fixtures.sh
+      - name: Assert fixtures are up to date
+        run: git diff --exit-code test/conformance/fixtures/cbor/native.toml
