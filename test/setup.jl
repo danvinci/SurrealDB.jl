@@ -2,10 +2,10 @@
 
 using SurrealDB
 
-# Auto-load libsurreal if SURREALDB_LIB is set or the dylib sits next to Project.toml
+# Auto-load libsurreal if SURREALDB_LIB is set or the dylib sits under deps/lib/
 let lib = get(ENV, "SURREALDB_LIB", "")
     if isempty(lib)
-        candidate = joinpath(@__DIR__, "..", "libsurrealdb_c.dylib")
+        candidate = joinpath(@__DIR__, "..", "deps", "lib", "libsurrealdb_c.dylib")
         isfile(candidate) && (lib = candidate)
     end
     if !isempty(lib) && !SurrealDB.LibSurreal.is_loaded()

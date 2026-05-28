@@ -14,7 +14,7 @@ const REPO_URL = "https://github.com/surrealdb/surrealdb.c.git"
 # Override via SURREALDB_C_REF env var to build a different revision.
 const REPO_REF = get(ENV, "SURREALDB_C_REF", "main")
 
-function build_libsurreal(output_dir::String = abspath(dirname(@__FILE__), ".."))
+function build_libsurreal(output_dir::String = abspath(dirname(@__FILE__), "lib"))
     build_dir = mktempdir(; cleanup = true)
     repo_dir = joinpath(build_dir, "surrealdb.c")
 
@@ -49,11 +49,7 @@ function build_libsurreal(output_dir::String = abspath(dirname(@__FILE__), "..")
     return dst
 end
 
-output_dir = length(ARGS) > 0 ? ARGS[1] : abspath(dirname(@__FILE__), "..")
-
-if !isfile(joinpath(output_dir, "__init__.jl"))
-    output_dir = joinpath(output_dir, "deps")
-end
+output_dir = length(ARGS) > 0 ? ARGS[1] : abspath(dirname(@__FILE__), "lib")
 mkpath(output_dir)
 
 build_libsurreal(output_dir)
