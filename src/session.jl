@@ -145,8 +145,8 @@ flips `txn.closed = true` so a stale handle can't be re-committed against a
 server-side transaction that no longer exists.
 
 Matches the wrapper pattern used by surrealdb-go (`Transaction` struct with
-`closed bool`, sdk-refs/go/transaction.go:24) and surrealdb-js
-(`SurrealTransaction extends SurrealQueryable`, sdk-refs/js/.../api/transaction.ts:13).
+`closed bool`, external/sdk-refs/go/transaction.go:24) and surrealdb-js
+(`SurrealTransaction extends SurrealQueryable`, external/sdk-refs/js/.../api/transaction.ts:13).
 """
 mutable struct SurrealTransaction{C<:AbstractConnection}
     session::SurrealSession{C}

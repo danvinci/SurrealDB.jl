@@ -583,7 +583,7 @@ function connect(url::String;
     wire in (:json, :cbor) || throw(ArgumentError("Unsupported wire format: $wire (expected :json or :cbor)"))
     # Preflight: pass both `ns` and `db`, or neither. Database is namespace-scoped
     # on the server, so one without the other is meaningless. Mirrors JS
-    # controller/index.ts:312 (sdk-refs/js/packages/sdk/src/controller/index.ts).
+    # controller/index.ts:312 (external/sdk-refs/js/packages/sdk/src/controller/index.ts).
     (isnothing(ns) ⊻ isnothing(db)) && throw(MissingNamespaceDatabaseError())
 
     if scheme in (:ws, :wss, :http, :https)
