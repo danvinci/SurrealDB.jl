@@ -5,9 +5,6 @@ on:
   pull_request:
     branches: [main]
 
-env:
-  UPSTREAM_TAG: v3.0.4
-
 jobs:
   cross-sdk:
     runs-on: ubuntu-latest
@@ -71,7 +68,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: external/upstream
-          key: upstream-${{ env.UPSTREAM_TAG }}
+          key: upstream-${{ hashFiles('external/pinned.toml') }}
       - name: Setup upstream corpus
         run: bash scripts/setup-upstream.sh
       - name: Provision server

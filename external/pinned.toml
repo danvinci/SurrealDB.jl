@@ -1,0 +1,32 @@
+# Pinned commits / tags for external/ checkouts.
+# Read by scripts/setup-sdk-refs.sh and scripts/setup-upstream.sh.
+# Bump entries here, not in the scripts.
+
+[upstream]
+# surrealdb/surrealdb — Rust SDK + language-tests corpus.
+# Sparse-blobless clone of the language-tests subtree.
+url = "https://github.com/surrealdb/surrealdb"
+tag = "v3.0.4"
+
+# Peer-SDK reference checkouts. Local dirs use the short keys (go, js, net, py,
+# rust); source-level `Mirrors:` comments cite paths under external/sdk-refs/<key>/.
+
+[sdk-refs.go]
+url = "https://github.com/surrealdb/surrealdb.go"
+commit = "aef39d3a439fae07172c5e5fb3d1cb3e395b3d86"
+
+[sdk-refs.js]
+url = "https://github.com/surrealdb/surrealdb.js"
+commit = "9df4326c6c78294b56d1368b4f9fd496e61c9ddc"
+
+[sdk-refs.net]
+url = "https://github.com/surrealdb/surrealdb.net"
+commit = "f6a7ce946e523f5ba1bd50d144541d90a0339306"
+
+[sdk-refs.py]
+url = "https://github.com/surrealdb/surrealdb.py"
+commit = "846f5de6df41935b9398074d1bacefa36ef97e44"
+
+[sdk-refs.rust]
+url = "https://github.com/surrealdb/surrealdb.rust"
+commit = "a97d3af85d79aa7101238bbe389d211284e7cd98"
