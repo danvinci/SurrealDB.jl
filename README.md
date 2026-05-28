@@ -44,7 +44,7 @@ results = SurrealDB.query(db, "SELECT * FROM user WHERE age > 18")
 SurrealDB.close!(db)
 ```
 
-Do-block form closes in a `finally`:
+Do-block form auto-closes via `finally`:
 
 ```julia
 SurrealDB.connect("ws://localhost:8000"; ns="test", db="test") do db
@@ -79,10 +79,10 @@ Full reference at [danvinci.github.io/SurrealDB.jl](https://danvinci.github.io/S
 
 ## Cross-SDK conformance
 
-Go SDK test suite ported as Julia testsets; Python interop verified via fixture round-trips.
+Selected Go testsets ported as Julia testsets; Python interop verified via fixture round-trips.
 JS + Rust planned ([roadmap](#roadmap)).
 
-The comparative reference set includes [Go](https://github.com/surrealdb/surrealdb.go), [Python](https://github.com/surrealdb/surrealdb.py), [JS](https://github.com/surrealdb/surrealdb.js), [Rust](https://github.com/surrealdb/surrealdb/tree/main/crates/sdk), and [.NET](https://github.com/surrealdb/surrealdb.net).
+Comparative reference set: [Go](https://github.com/surrealdb/surrealdb.go), [Python](https://github.com/surrealdb/surrealdb.py), [JS](https://github.com/surrealdb/surrealdb.js), [Rust](https://github.com/surrealdb/surrealdb/tree/main/crates/sdk), [.NET](https://github.com/surrealdb/surrealdb.net).
 
 ## Requirements
 
@@ -101,11 +101,14 @@ bash scripts/setup-upstream.sh
 bash scripts/setup-server.sh
 bash scripts/run-conformance.sh
 
+# CI-1:1 parity locally (forces Docker like CI):
+SURREALDB_BACKEND=docker bash scripts/setup-server.sh
+
 # Surgical iteration on a single file:
 julia --project=test test/sdk/cbor/test_cbor_io.jl
 ```
 
-Unit layer needs no network; integration needs `surreal start --bind 127.0.0.1:8001`; embedded needs `libsurreal`.
+Unit layer needs no network; integration needs `surreal start --bind 127.0.0.1:8001` (CI + conformance use `:8000`); embedded needs `libsurreal`.
 Layers self-skip when prerequisites are missing.
 
 ## Development
