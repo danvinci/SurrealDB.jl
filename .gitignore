@@ -20,9 +20,10 @@ Manifest.toml
 .claude/
 .code-review-graph/
 
-# Peer SDKs
-sdk-refs/
-test/conformance/
+# External checkouts
+test/conformance/language-tests/runs/        # ephemeral run output
+test/conformance/fixtures/cbor/gen/target/   # cargo artifacts
+external/                                    # external checkouts (upstream + sdk-refs)
 
 # OS
 .DS_Store

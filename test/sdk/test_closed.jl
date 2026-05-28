@@ -6,7 +6,7 @@
 using SurrealDB
 using Test
 
-include("mock_ws_server.jl")
+include("../mock_ws_server.jl")
 
 @testset "closed: SurrealClient guard" begin
     mock = MockWS.start_mock()

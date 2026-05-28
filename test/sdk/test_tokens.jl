@@ -10,7 +10,7 @@ using Test
 using Base64
 using JSON
 
-include("mock_ws_server.jl")
+include("../mock_ws_server.jl")
 
 # Build a JWT (header.payload.signature) with the supplied payload. Signature
 # is a fixed placeholder — the SDK never verifies it, only decodes `exp`.

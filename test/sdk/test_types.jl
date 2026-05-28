@@ -1,3 +1,5 @@
+using StructTypes
+
 @testset "Show methods" begin
     # Compact show output for human-readable REPL printing.
     r = SurrealDB.RecordID("user", "abc123")
@@ -248,4 +250,19 @@ StructTypes.StructType(::Type{_CtorTestUser}) = StructTypes.Struct()
     @test_throws ArgumentError SurrealDB._construct_one(
         SurrealDB.AbstractConnection, Dict{String, Any}())
     @test_throws ArgumentError SurrealDB._field_layout(SurrealDB.AbstractConnection)
+end
+
+if @isdefined(SERVER_AVAILABLE) && SERVER_AVAILABLE
+    _types_client = get_test_client()
+
+    @testset "Select by RecordID struct" begin
+        rid_obj = SurrealDB.RecordID("test_port", "by_rid")
+        SurrealDB.create(_types_client, rid_obj, Dict("username" => "frank"))
+
+        user = SurrealDB.select(_types_client, rid_obj)
+        @test user isa AbstractDict
+        @test get(user, "username", nothing) == "frank"
+
+        SurrealDB.query(_types_client, "DELETE FROM test_port")
+    end
 end

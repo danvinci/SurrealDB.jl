@@ -133,7 +133,7 @@ end
 # and uses its codec for frame encoding. Exercises the actual reconnect
 # loop + reader/writer tasks rather than just the codec helpers.
 
-include("mock_ws_server.jl")
+include("../mock_ws_server.jl")
 
 function _wire_wait_until(pred; timeout_s::Float64=2.0, step_s::Float64=0.025)
     deadline = time() + timeout_s

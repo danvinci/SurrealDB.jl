@@ -12,7 +12,7 @@ using SurrealDB
 using Test
 using Sockets
 
-include("mock_ws_server.jl")
+include("../mock_ws_server.jl")
 
 # Wait until `pred()` returns true or `timeout_s` elapses. Returns whether the
 # predicate held by the deadline. Polls every 50ms — fast enough that a 1s

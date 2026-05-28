@@ -13,7 +13,7 @@ using SurrealDB
 using Test
 using Sockets
 
-include("mock_ws_server.jl")
+include("../mock_ws_server.jl")
 
 function _wait_until(pred; timeout_s::Float64=2.0, step_s::Float64=0.025)
     deadline = time() + timeout_s

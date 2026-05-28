@@ -75,7 +75,7 @@ end
 @testset "multi-subscriber fan-out: every channel receives each notification" begin
     # Two channels registered against the same live UUID — both should see every
     # notification. Mirrors the JS `ManagedLiveQuery` Set-of-subscribers shape
-    # (sdk-refs/js/.../utils/live.ts:84).
+    # (external/sdk-refs/js/.../utils/live.ts:84).
     conn = _Lv.RemoteConnection{:ws, :json}(url="ws://x")
     qid = "33333333-3333-3333-3333-333333333333"
     ch1 = Channel{Any}(8)

@@ -64,140 +64,140 @@ end
     # --- No-server testsets (always run) ---
 
     _section("Types") do
-        @testset "Types" begin include("test_types.jl") end
+        @testset "Types" begin include("sdk/test_types.jl") end
     end
     _section("Public API surface") do
-        @testset "Public API surface" begin include("test_api_surface.jl") end
+        @testset "Public API surface" begin include("sdk/test_api_surface.jl") end
     end
     _section("Aqua") do
-        @testset "Aqua" begin include("test_aqua.jl") end
+        @testset "Aqua" begin include("sdk/test_aqua.jl") end
     end
     _section("JET") do
-        @testset "JET" begin include("test_jet.jl") end
+        @testset "JET" begin include("sdk/test_jet.jl") end
     end
     _section("Errors") do
-        @testset "Errors" begin include("test_errors.jl") end
+        @testset "Errors" begin include("sdk/test_errors.jl") end
     end
     _section("Fuzz") do
-        @testset "Fuzz" begin include("test_fuzz.jl") end
+        @testset "Fuzz" begin include("sdk/test_fuzz.jl") end
     end
     _section("Wire codec dispatch") do
-        @testset "Wire codec dispatch" begin include("test_wire.jl") end
+        @testset "Wire codec dispatch" begin include("sdk/test_wire.jl") end
     end
     _section("query_verbose") do
-        @testset "query_verbose" begin include("test_query_verbose.jl") end
+        @testset "query_verbose" begin include("sdk/test_query_verbose.jl") end
     end
     _section("HTTP adapt method") do
-        @testset "HTTP adapt method" begin include("test_http_adapt.jl") end
+        @testset "HTTP adapt method" begin include("sdk/test_http_adapt.jl") end
     end
     _section("Live KILLED dispatch") do
-        @testset "Live KILLED dispatch" begin include("test_live_kill.jl") end
+        @testset "Live KILLED dispatch" begin include("sdk/test_live_kill.jl") end
     end
     _section("Closed lifecycle") do
-        @testset "Closed lifecycle" begin include("test_closed.jl") end
+        @testset "Closed lifecycle" begin include("sdk/test_closed.jl") end
     end
     _section("ExplicitImports") do
-        @testset "ExplicitImports" begin include("test_explicit_imports.jl") end
+        @testset "ExplicitImports" begin include("sdk/test_explicit_imports.jl") end
     end
     _section("Reconnect") do
-        @testset "Reconnect" begin include("test_reconnect.jl") end
+        @testset "Reconnect" begin include("sdk/test_reconnect.jl") end
     end
     _section("Reconnect Integration") do
-        @testset "Reconnect Integration" begin include("test_reconnect_integration.jl") end
+        @testset "Reconnect Integration" begin include("sdk/test_reconnect_integration.jl") end
     end
     _section("Lifecycle events") do
-        @testset "Lifecycle events" begin include("test_lifecycle_events.jl") end
+        @testset "Lifecycle events" begin include("sdk/test_lifecycle_events.jl") end
     end
     _section("Tokens / refresh") do
-        @testset "Tokens / refresh" begin include("test_tokens.jl") end
+        @testset "Tokens / refresh" begin include("sdk/test_tokens.jl") end
     end
     _section("Version check") do
-        @testset "Version check" begin include("test_version_check.jl") end
+        @testset "Version check" begin include("sdk/test_version_check.jl") end
     end
     _section("Load resilience") do
-        @testset "Load resilience" begin include("test_load_resilience.jl") end
+        @testset "Load resilience" begin include("sdk/test_load_resilience.jl") end
     end
     _section("MetaGraph") do
-        @testset "MetaGraph" begin include("test_metagraph.jl") end
+        @testset "MetaGraph" begin include("sdk/test_metagraph.jl") end
     end
     _section("CBOR I/O (L1)") do
-        @testset "CBOR I/O (L1)" begin include("test_cbor_io.jl") end
+        @testset "CBOR I/O (L1)" begin include("sdk/cbor/test_cbor_io.jl") end
     end
     _section("CBOR codec (L2)") do
-        @testset "CBOR codec (L2)" begin include("test_cbor_codec.jl") end
+        @testset "CBOR codec (L2)" begin include("sdk/cbor/test_cbor_codec.jl") end
     end
     _section("CBOR parity (vs ciborium)") do
-        @testset "CBOR parity (vs ciborium)" begin include("test_cbor_parity.jl") end
+        @testset "CBOR parity (vs ciborium)" begin include("sdk/cbor/test_cbor_parity.jl") end
     end
     _section("CBOR types: NONE") do
-        @testset "CBOR types: NONE" begin include("test_cbor_types_none.jl") end
+        @testset "CBOR types: NONE" begin include("sdk/cbor/test_cbor_types_none.jl") end
     end
     _section("CBOR types: RecordID") do
-        @testset "CBOR types: RecordID" begin include("test_cbor_types_recordid.jl") end
+        @testset "CBOR types: RecordID" begin include("sdk/cbor/test_cbor_types_recordid.jl") end
     end
     _section("CBOR types: UUID") do
-        @testset "CBOR types: UUID" begin include("test_cbor_types_uuid.jl") end
+        @testset "CBOR types: UUID" begin include("sdk/cbor/test_cbor_types_uuid.jl") end
     end
     _section("CBOR types: Table") do
-        @testset "CBOR types: Table" begin include("test_cbor_types_table.jl") end
+        @testset "CBOR types: Table" begin include("sdk/cbor/test_cbor_types_table.jl") end
     end
     _section("CBOR types: Decimal") do
-        @testset "CBOR types: Decimal" begin include("test_cbor_types_decimal.jl") end
+        @testset "CBOR types: Decimal" begin include("sdk/cbor/test_cbor_types_decimal.jl") end
     end
     _section("CBOR types: DateTime") do
-        @testset "CBOR types: DateTime" begin include("test_cbor_types_datetime.jl") end
+        @testset "CBOR types: DateTime" begin include("sdk/cbor/test_cbor_types_datetime.jl") end
     end
     _section("CBOR types: Duration") do
-        @testset "CBOR types: Duration" begin include("test_cbor_types_duration.jl") end
+        @testset "CBOR types: Duration" begin include("sdk/cbor/test_cbor_types_duration.jl") end
     end
     _section("CBOR types: File") do
-        @testset "CBOR types: File" begin include("test_cbor_types_file.jl") end
+        @testset "CBOR types: File" begin include("sdk/cbor/test_cbor_types_file.jl") end
     end
     _section("CBOR types: Set") do
-        @testset "CBOR types: Set" begin include("test_cbor_types_set.jl") end
+        @testset "CBOR types: Set" begin include("sdk/cbor/test_cbor_types_set.jl") end
     end
     _section("CBOR types: Range") do
-        @testset "CBOR types: Range" begin include("test_cbor_types_range.jl") end
+        @testset "CBOR types: Range" begin include("sdk/cbor/test_cbor_types_range.jl") end
     end
     _section("CBOR types: Geometry") do
-        @testset "CBOR types: Geometry" begin include("test_cbor_types_geometry.jl") end
+        @testset "CBOR types: Geometry" begin include("sdk/cbor/test_cbor_types_geometry.jl") end
     end
 
     # --- Server-dependent testsets (gated on SERVER_AVAILABLE) ---
 
     if SERVER_AVAILABLE
         _section("Connection") do
-            @testset "Connection" begin include("test_connection.jl") end
+            @testset "Connection" begin include("sdk/test_connection.jl") end
         end
         _section("Auth") do
-            @testset "Auth" begin include("test_auth.jl") end
+            @testset "Auth" begin include("sdk/test_auth.jl") end
         end
         _section("Methods") do
-            @testset "Methods" begin include("test_methods.jl") end
+            @testset "Methods" begin include("sdk/test_methods.jl") end
         end
         _section("Query") do
-            @testset "Query" begin include("test_query.jl") end
+            @testset "Query" begin include("sdk/test_query.jl") end
         end
         _section("Session") do
-            @testset "Session" begin include("test_session.jl") end
+            @testset "Session" begin include("sdk/test_session.jl") end
         end
         _section("Live") do
-            @testset "Live" begin include("test_live.jl") end
+            @testset "Live" begin include("sdk/test_live.jl") end
         end
-        _section("Integration Gaps") do
-            @testset "Integration Gaps" begin include("test_integration_gaps.jl") end
+        _section("Transactions") do
+            @testset "Transactions" begin include("sdk/test_transactions.jl") end
         end
-        _section("Go SDK Conformance") do
-            @testset "Go SDK Conformance" begin include("test_go_conformance.jl") end
+        _section("Typed structs") do
+            @testset "Typed structs" begin include("sdk/test_typed_struct.jl") end
         end
         _section("Type round-trip") do
-            @testset "Type round-trip" begin include("test_type_roundtrip.jl") end
+            @testset "Type round-trip" begin include("sdk/test_type_roundtrip.jl") end
         end
         _section("JWT expiry") do
-            @testset "JWT expiry" begin include("test_jwt_expiry.jl") end
+            @testset "JWT expiry" begin include("sdk/test_jwt_expiry.jl") end
         end
         _section("Signup") do
-            @testset "Signup" begin include("test_signup.jl") end
+            @testset "Signup" begin include("sdk/test_signup.jl") end
         end
     end
 
@@ -205,13 +205,13 @@ end
 
     if SurrealDB.LibSurreal.is_loaded()
         _section("Embedded") do
-            @testset "Embedded" begin include("test_embedded.jl") end
+            @testset "Embedded" begin include("sdk/test_embedded.jl") end
         end
         _section("FFI Types") do
-            @testset "FFI Types" begin include("test_ffi_types.jl") end
+            @testset "FFI Types" begin include("sdk/test_ffi_types.jl") end
         end
         _section("Memory leak (embedded)") do
-            @testset "Memory leak (embedded)" begin include("test_memory.jl") end
+            @testset "Memory leak (embedded)" begin include("sdk/test_memory.jl") end
         end
     end
 end
