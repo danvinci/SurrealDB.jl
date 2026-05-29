@@ -36,10 +36,15 @@ function get_test_client(; url=TEST_URL, wire=TEST_WIRE)
     # matrix axis without per-call edits.
     println(stderr, "[get_test_client] connect (wire=$wire)..."); flush(stderr)
     client = SurrealDB.connect(url; ping_interval=0.0, wire=wire)
-    println(stderr, "[get_test_client] use!..."); flush(stderr)
-    SurrealDB.use!(client, TEST_NS, TEST_DB)
     println(stderr, "[get_test_client] signin!..."); flush(stderr)
     SurrealDB.signin!(client, SurrealDB.RootAuth("root", "root"))
+    # SurrealDB no longer creates a namespace/database as a side effect of USE;
+    # provision them explicitly (idempotent) before selecting. DEFINE NAMESPACE
+    # runs at root scope; DEFINE DATABASE needs the namespace selected first.
+    println(stderr, "[get_test_client] define ns/db..."); flush(stderr)
+    SurrealDB.query(client, "DEFINE NAMESPACE IF NOT EXISTS $TEST_NS")
+    SurrealDB.use!(client, TEST_NS, TEST_DB)
+    SurrealDB.query(client, "DEFINE DATABASE IF NOT EXISTS $TEST_DB")
     println(stderr, "[get_test_client] ready"); flush(stderr)
     return client
 end

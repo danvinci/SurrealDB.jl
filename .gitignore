@@ -1,3 +1,6 @@
+# OS
+.DS_Store
+
 # Native libs
 *.so
 *.dylib
@@ -16,14 +19,12 @@ docs/Manifest.toml
 # Manifest
 Manifest.toml
 
-# Agents
+# IDE/Agents
 .claude/
 .code-review-graph/
 
 # External checkouts
+!external/pinned.toml
+external/ 							 		 # external checkouts (upstream + sdk-refs)
 test/conformance/language-tests/runs/        # ephemeral run output
 test/conformance/fixtures/cbor/gen/target/   # cargo artifacts
-external/                                    # external checkouts (upstream + sdk-refs)
-
-# OS
-.DS_Store
