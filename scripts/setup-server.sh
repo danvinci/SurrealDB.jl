@@ -6,7 +6,7 @@ set -euo pipefail
 PORT="${SURREALDB_PORT:-8000}"
 USER="${SURREALDB_USER:-root}"
 PASS="${SURREALDB_PASS:-root}"
-IMAGE="${SURREALDB_IMAGE:-surrealdb/surrealdb:latest}"
+IMAGE="${SURREALDB_IMAGE:-surrealdb/surrealdb:v3.1.2}"
 READY_TIMEOUT="${SURREALDB_READY_TIMEOUT:-30}"
 
 # Already running? Done.

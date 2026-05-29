@@ -4,14 +4,14 @@ on: [push, pull_request]
 jobs:
   # Unit-only run: server-dependent and embedded testsets self-skip when
   # their prerequisites aren't available. Matrix across the compat range
-  # (1.9 LTS) and current stable to catch version-skew regressions.
+  # (1.10 LTS) and current stable to catch version-skew regressions.
   test-unit:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
-        julia-version: ['1.9', '1']
+        julia-version: ['1.10', '1']
     steps:
       - uses: actions/checkout@v4
       - uses: julia-actions/setup-julia@v2
@@ -28,7 +28,8 @@ jobs:
           fail_ci_if_error: false
 
   # Matrix across SurrealDB server versions and wire formats. Catches:
-  #   * version-skew bugs (`latest` floats; pinned tags lock v2.x / v3.x)
+  #   * version-skew bugs (tags pinned, not floating, so a run is
+  #     reproducible over time; bump deliberately in a PR)
   #   * wire-codec drift against a real server (mock-only tests echo the
   #     codec; only a live server emits ciborium-canonical envelopes for
   #     RPC responses, query results, errors, and notification frames)
@@ -38,9 +39,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        julia-version: ['1.10', '1']
         surreal-image:
-          - surrealdb/surrealdb:v2
-          - surrealdb/surrealdb:latest
+          - surrealdb/surrealdb:v2.6.5
+          - surrealdb/surrealdb:v3.1.2
         wire:
           - cbor
           - json
@@ -48,7 +50,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: julia-actions/setup-julia@v2
         with:
-          version: '1'
+          version: ${{ matrix.julia-version }}
       - uses: julia-actions/cache@v2
       - uses: julia-actions/julia-buildpkg@v1
       - name: Instantiate test env
@@ -85,6 +87,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        julia-version: ['1.10', '1']
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 25
@@ -92,7 +95,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: julia-actions/setup-julia@v2
         with:
-          version: '1'
+          version: ${{ matrix.julia-version }}
       - uses: julia-actions/cache@v2
       - uses: julia-actions/julia-buildpkg@v1
       - name: Instantiate test env
