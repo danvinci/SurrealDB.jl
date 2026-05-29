@@ -5,39 +5,52 @@ using StructTypes  # test_types.jl extends StructType; needs module-scope visibi
 
 include("setup.jl")
 
-# Probe whether the integration test server (TEST_URL) is reachable. Lets us
-# skip — rather than error — server-dependent testsets when running locally
-# without a `surreal start` instance. CI sets SURREALDB_URL and the probe
-# always succeeds. Without this gate, a dev who runs the suite without a
-# server gets 17 confusing "errored" results that look like real failures.
-function _server_reachable(url::String; timeout_s::Float64=0.5)
+# Probe whether the integration test server (TEST_URL) is reachable. Locally
+# (no SURREALDB_URL) this gates server-dependent testsets so they skip rather
+# than error when no `surreal start` is running. When SURREALDB_URL IS set
+# (CI, the docker harness) a server is expected: an unreachable one is a hard
+# error, never a silent skip, or the suite goes vacuously green having tested
+# nothing server-side.
+#
+# Tries every resolved address: `localhost` yields ::1 AND 127.0.0.1, and a
+# server bound IPv4-only is unreachable via ::1. Raw `Sockets.connect(host,…)`
+# tries one address and gives up — that false negative silently skipped every
+# server test under the harness's shared-netns localhost topology.
+function _server_reachable(url::String; timeout_s::Float64=2.0)
     m = match(r"^(?:ws|wss|http|https)://([^:/]+):?(\d+)?", url)
     m === nothing && return false
     host = m.captures[1]
-    port_str = m.captures[2]
-    port = port_str === nothing ? 8000 : parse(Int, port_str)
-    return try
-        sock = nothing
-        ok = Ref(false)
-        task = @async begin
+    port = m.captures[2] === nothing ? 8000 : parse(Int, m.captures[2])
+    addrs = try
+        Sockets.getalladdrinfo(host)
+    catch
+        return false
+    end
+    ok = Ref(false)
+    for addr in addrs
+        @async begin
             try
-                sock = Sockets.connect(host, port)
+                sock = Sockets.connect(addr, port)
                 ok[] = true
+                close(sock)
             catch
             end
         end
-        deadline = time() + timeout_s
-        while time() < deadline && !ok[]
-            sleep(0.02)
-        end
-        sock !== nothing && (try; close(sock); catch; end)
-        ok[]
-    catch
-        false
     end
+    deadline = time() + timeout_s
+    while time() < deadline && !ok[]
+        sleep(0.02)
+    end
+    return ok[]
 end
 
+const SERVER_EXPECTED = haskey(ENV, "SURREALDB_URL")
 const SERVER_AVAILABLE = _server_reachable(TEST_URL)
+if SERVER_EXPECTED && !SERVER_AVAILABLE
+    error("SURREALDB_URL=$(TEST_URL) is set but no server is reachable there. " *
+          "Refusing to skip server tests silently — that would be a vacuous pass. " *
+          "Start the server, or unset SURREALDB_URL to run unit-only.")
+end
 SERVER_AVAILABLE || @info "Skipping server-dependent tests — no SurrealDB at $(TEST_URL). Set SURREALDB_URL or start `surreal start --bind 127.0.0.1:8001`."
 
 # Per-testset progress marker. Surfaces "which testset hung?" in CI logs when
