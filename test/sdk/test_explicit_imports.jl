@@ -47,12 +47,18 @@ const _LINTED_MODULES = (
     SurrealDB.Embedded.LibSurreal,
 )
 
+# Submodules have no `pathof` of their own, so ExplicitImports can't locate the
+# source that defines them and throws FileNotFoundException (julia ≤1.10; newer
+# julia happens to mask it). Passing the package's entry file lets it resolve
+# every submodule from the include tree — robust across julia versions.
+const _PKGFILE = pathof(SurrealDB)
+
 @testset "no implicit imports" begin
     # Every `using Foo` line names what it brings in. Catches the case where
     # adding a new `using Foo` quietly pulls in a name the rest of the file
     # accidentally relies on.
     for m in _LINTED_MODULES
-        @test isnothing(ExplicitImports.check_no_implicit_imports(m))
+        @test isnothing(ExplicitImports.check_no_implicit_imports(m, _PKGFILE))
     end
 end
 
@@ -61,7 +67,7 @@ end
     # `bar` — not a re-exporter. Catches the case where a peer module changes
     # what it re-exports and our import silently follows along.
     for m in _LINTED_MODULES
-        @test isnothing(ExplicitImports.check_all_explicit_imports_via_owners(m))
+        @test isnothing(ExplicitImports.check_all_explicit_imports_via_owners(m, _PKGFILE))
     end
 end
 
@@ -69,10 +75,10 @@ end
     # Catches imports that no longer have any use site. The SurrealDB-level
     # check ignores the `_EMBEDDED_REEXPORTS` re-export block (see top of
     # file for rationale).
-    @test isnothing(ExplicitImports.check_no_stale_explicit_imports(SurrealDB;
+    @test isnothing(ExplicitImports.check_no_stale_explicit_imports(SurrealDB, _PKGFILE;
         ignore=_EMBEDDED_REEXPORTS))
-    @test isnothing(ExplicitImports.check_no_stale_explicit_imports(SurrealDB.SurrealCBOR))
-    @test isnothing(ExplicitImports.check_no_stale_explicit_imports(SurrealDB.SurrealTypes))
-    @test isnothing(ExplicitImports.check_no_stale_explicit_imports(SurrealDB.Embedded))
-    @test isnothing(ExplicitImports.check_no_stale_explicit_imports(SurrealDB.Embedded.LibSurreal))
+    @test isnothing(ExplicitImports.check_no_stale_explicit_imports(SurrealDB.SurrealCBOR, _PKGFILE))
+    @test isnothing(ExplicitImports.check_no_stale_explicit_imports(SurrealDB.SurrealTypes, _PKGFILE))
+    @test isnothing(ExplicitImports.check_no_stale_explicit_imports(SurrealDB.Embedded, _PKGFILE))
+    @test isnothing(ExplicitImports.check_no_stale_explicit_imports(SurrealDB.Embedded.LibSurreal, _PKGFILE))
 end
