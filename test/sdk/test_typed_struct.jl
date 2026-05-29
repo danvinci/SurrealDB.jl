@@ -60,9 +60,17 @@ end
     users = SurrealDB.query(client, TestUser, "SELECT * FROM test_port ORDER BY username")
     @test users isa Vector{TestUser}
     @test length(users) >= 2
-    # `id` arrives as typed `RecordID` post-s13 type fidelity (CBOR Tag(8)).
-    @test users[1].id isa RecordID
-    @test users[1].id.table == "test_port"
+    # CBOR carries a native RecordID (Tag 8); JSON has no record-id type, so it
+    # arrives as a "table:id" string. The field is ::Any, so the SDK passes
+    # through whatever the wire delivered — there's no reliable way to normalize
+    # an ambiguous JSON string back to a RecordID.
+    if TEST_WIRE == :cbor
+        @test users[1].id isa RecordID
+        @test users[1].id.table == "test_port"
+    else
+        @test users[1].id isa AbstractString
+        @test startswith(users[1].id, "test_port:")
+    end
 
     _clean_struct!(client, "test_port")
 end
@@ -72,7 +80,7 @@ end
         Dict("username" => "eve", "password" => "555"))
     @test user isa TestUser
     @test user.username == "eve"
-    @test user.id == rid"test_port:irt"
+    @test user.id == (TEST_WIRE == :cbor ? rid"test_port:irt" : "test_port:irt")
 
     _clean_struct!(client, "test_port")
 end
