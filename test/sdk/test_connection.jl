@@ -59,7 +59,7 @@ end
 @testset "Close then use" begin
     client = SurrealDB.connect(TEST_URL)
     SurrealDB.close!(client)
-    @test_throws SurrealDB.ConnectionError SurrealDB.use!(client, TEST_NS, TEST_DB)
+    @test_throws SurrealDB.ConnectionUnavailableError SurrealDB.use!(client, TEST_NS, TEST_DB)
 end
 
 @testset "Connect with bad URL" begin
