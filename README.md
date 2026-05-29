@@ -86,7 +86,7 @@ Comparative reference set: [Go](https://github.com/surrealdb/surrealdb.go), [Pyt
 
 ## Requirements
 
-- Julia 1.9+
+- Julia 1.10+
 - Remote: SurrealDB server v2.x or v3.x
 - Embedded: `libsurreal` from [`surrealdb/surrealdb.c`](https://github.com/surrealdb/surrealdb.c)
 
