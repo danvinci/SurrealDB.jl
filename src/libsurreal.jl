@@ -309,7 +309,7 @@ function _julia_to_sr_value(val)::Ptr{Cvoid}
     elseif val isa AbstractString
         return ccall(_sym("sr_value_string"), Ptr{Cvoid}, (Cstring,), String(val))
     elseif val isa Vector{UInt8}
-        return ccall(_sym("sr_value_bytes"), Ptr{Cvoid}, (Ptr{UInt8}, Cint),
+        GC.@preserve val return ccall(_sym("sr_value_bytes"), Ptr{Cvoid}, (Ptr{UInt8}, Cint),
                      pointer(val), Cint(length(val)))
     elseif val isa AbstractDict
         obj = _dict_to_object(val)
@@ -357,8 +357,9 @@ function _parse_sr_notification(buf::Vector{UInt8})::Dict{String, Any}
 
     # sr_value_t starts at offset 24 — parse via the existing _parse_sr_value
     # which expects a pointer to the struct's tag.
-    value_ptr = pointer(buf) + _NOTIF_VALUE_OFFSET
-    parsed = _parse_sr_value(value_ptr)
+    # GC.@preserve pins buf across the nested ccalls inside _parse_sr_value
+    # (sr_array_len, sr_array_get, sr_object_keys) that can trigger GC.
+    parsed = GC.@preserve buf _parse_sr_value(pointer(buf) + _NOTIF_VALUE_OFFSET)
 
     return Dict{String, Any}(
         "query_id" => uuid_str,
@@ -423,7 +424,6 @@ function sr_signin(db::Ptr{Cvoid}, scope, username::String, password::String,
     p = Base.cconvert(Cstring, password)
     creds = SrCredentials(Base.unsafe_convert(Cstring, u), Base.unsafe_convert(Cstring, p))
     creds_ref = Ref(creds)
-    creds_ptr = Ptr{Cvoid}(pointer_from_objref(creds_ref))
 
     if scope_val != SCOPE_ROOT
         nsc = Base.cconvert(Cstring, ns)
@@ -435,19 +435,26 @@ function sr_signin(db::Ptr{Cvoid}, scope, username::String, password::String,
             Base.unsafe_convert(Cstring, acc),
         )
         details_ref = Ref(details)
-        details_ptr = Ptr{Cvoid}(pointer_from_objref(details_ref))
     else
-        details_ptr = Ptr{Cvoid}(C_NULL)
+        details_ref = Ref(SrCredentialsAccess(C_NULL, C_NULL, C_NULL))
     end
 
     err = Ref{Cstring}(C_NULL)
     token = Ref{Cstring}(C_NULL)
     scope_ref = Ref{Cint}(scope_val)
-    scope_ptr = Ptr{Cvoid}(pointer_from_objref(scope_ref))
 
-    ret = ccall(_sym("sr_signin"), Cint,
-                (Ptr{Cvoid}, Ptr{Cstring}, Ptr{Cstring}, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}),
-                db, err, token, scope_ptr, creds_ptr, details_ptr, C_NULL)
+    # GC.@preserve pins creds_ref, details_ref, and scope_ref across the ccall
+    # so the pointers extracted via unsafe_convert remain valid.
+    GC.@preserve creds_ref details_ref scope_ref begin
+        scope_p  = Base.unsafe_convert(Ptr{Cint}, scope_ref)
+        creds_p  = Base.unsafe_convert(Ptr{SrCredentials}, creds_ref)
+        details_p = scope_val == SCOPE_ROOT ?
+            Ptr{SrCredentialsAccess}(C_NULL) :
+            Base.unsafe_convert(Ptr{SrCredentialsAccess}, details_ref)
+        ret = ccall(_sym("sr_signin"), Cint,
+                    (Ptr{Cvoid}, Ptr{Cstring}, Ptr{Cstring}, Ptr{Cint}, Ptr{SrCredentials}, Ptr{SrCredentialsAccess}, Ptr{Cvoid}),
+                    db, err, token, scope_p, creds_p, details_p, C_NULL)
+    end
     if ret < 0
         err_msg = err[] != C_NULL ? unsafe_string(err[]) : "unknown error"
         if err[] != C_NULL; free_string(err[]); end
@@ -467,7 +474,6 @@ function sr_signup(db::Ptr{Cvoid}, scope, username::String, password::String,
     pc = Base.cconvert(Cstring, password)
     creds = SrCredentials(Base.unsafe_convert(Cstring, uc), Base.unsafe_convert(Cstring, pc))
     creds_ref = Ref(creds)
-    creds_ptr = Ptr{Cvoid}(pointer_from_objref(creds_ref))
 
     if scope_val != SCOPE_ROOT
         nsc = Base.cconvert(Cstring, ns)
@@ -479,19 +485,24 @@ function sr_signup(db::Ptr{Cvoid}, scope, username::String, password::String,
             Base.unsafe_convert(Cstring, acc),
         )
         details_ref = Ref(details)
-        details_ptr = Ptr{Cvoid}(pointer_from_objref(details_ref))
     else
-        details_ptr = Ptr{Cvoid}(C_NULL)
+        details_ref = Ref(SrCredentialsAccess(C_NULL, C_NULL, C_NULL))
     end
 
     err = Ref{Cstring}(C_NULL)
     token = Ref{Cstring}(C_NULL)
     scope_ref = Ref{Cint}(scope_val)
-    scope_ptr = Ptr{Cvoid}(pointer_from_objref(scope_ref))
 
-    ret = ccall(_sym("sr_signup"), Cint,
-                (Ptr{Cvoid}, Ptr{Cstring}, Ptr{Cstring}, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}),
-                db, err, token, scope_ptr, creds_ptr, details_ptr, C_NULL)
+    GC.@preserve creds_ref details_ref scope_ref begin
+        scope_p   = Base.unsafe_convert(Ptr{Cint}, scope_ref)
+        creds_p   = Base.unsafe_convert(Ptr{SrCredentials}, creds_ref)
+        details_p = scope_val == SCOPE_ROOT ?
+            Ptr{SrCredentialsAccess}(C_NULL) :
+            Base.unsafe_convert(Ptr{SrCredentialsAccess}, details_ref)
+        ret = ccall(_sym("sr_signup"), Cint,
+                    (Ptr{Cvoid}, Ptr{Cstring}, Ptr{Cstring}, Ptr{Cint}, Ptr{SrCredentials}, Ptr{SrCredentialsAccess}, Ptr{Cvoid}),
+                    db, err, token, scope_p, creds_p, details_p, C_NULL)
+    end
     if ret < 0
         err_msg = err[] != C_NULL ? unsafe_string(err[]) : "unknown error"
         if err[] != C_NULL; free_string(err[]); end
@@ -533,10 +544,9 @@ function sr_query(db::Ptr{Cvoid}, query::String, vars)::Vector{Any}
     res = Ref{Ptr{Cvoid}}(C_NULL)
     var_obj = _dict_to_object(vars)
     var_ref = Ref(var_obj)
-    var_ptr = Ptr{Cvoid}(pointer_from_objref(var_ref))
     ret = ccall(_sym("sr_query"), Cint,
-                (Ptr{Cvoid}, Ptr{Cstring}, Ptr{Ptr{Cvoid}}, Cstring, Ptr{Cvoid}),
-                db, err, res, query, var_ptr)
+                (Ptr{Cvoid}, Ptr{Cstring}, Ptr{Ptr{Cvoid}}, Cstring, Ref{SrObject}),
+                db, err, res, query, var_ref)
     _free_object(var_obj)
     if ret < 0
         err_msg = err[] != C_NULL ? unsafe_string(err[]) : "unknown error"
@@ -646,10 +656,9 @@ function sr_create(db, resource::String, content)::Any
     res = Ref{Ptr{Cvoid}}(C_NULL)
     content_obj = content isa AbstractDict ? _dict_to_object(content) : _dict_to_object(Dict{String, Any}())
     content_ref = Ref(content_obj)
-    content_ptr = Ptr{Cvoid}(pointer_from_objref(content_ref))
     ret = ccall(_sym("sr_create"), Cint,
-                (Ptr{Cvoid}, Ptr{Cstring}, Ptr{Ptr{Cvoid}}, Cstring, Ptr{Cvoid}),
-                db, err, res, resource, content_ptr)
+                (Ptr{Cvoid}, Ptr{Cstring}, Ptr{Ptr{Cvoid}}, Cstring, Ref{SrObject}),
+                db, err, res, resource, content_ref)
     _free_object(content_obj)
     if ret < 0
         err_msg = err[] != C_NULL ? unsafe_string(err[]) : "unknown error"
@@ -691,10 +700,9 @@ function sr_update(db, resource::String, content)::Any
     res = Ref{Ptr{Cvoid}}(C_NULL)
     content_obj = content isa AbstractDict ? _dict_to_object(content) : _dict_to_object(Dict{String, Any}())
     content_ref = Ref(content_obj)
-    content_ptr = Ptr{Cvoid}(pointer_from_objref(content_ref))
     ret = ccall(_sym("sr_update"), Cint,
-                (Ptr{Cvoid}, Ptr{Cstring}, Ptr{Ptr{Cvoid}}, Cstring, Ptr{Cvoid}),
-                db, err, res, resource, content_ptr)
+                (Ptr{Cvoid}, Ptr{Cstring}, Ptr{Ptr{Cvoid}}, Cstring, Ref{SrObject}),
+                db, err, res, resource, content_ref)
     _free_object(content_obj)
     if ret < 0
         err_msg = err[] != C_NULL ? unsafe_string(err[]) : "unknown error"
@@ -737,10 +745,9 @@ function sr_insert(db, table::String, content)::Any
     res = Ref{Ptr{Cvoid}}(C_NULL)
     content_obj = content isa AbstractDict ? _dict_to_object(content) : _dict_to_object(Dict{String, Any}())
     content_ref = Ref(content_obj)
-    content_ptr = Ptr{Cvoid}(pointer_from_objref(content_ref))
     ret = ccall(_sym("sr_insert"), Cint,
-                (Ptr{Cvoid}, Ptr{Cstring}, Ptr{Ptr{Cvoid}}, Cstring, Ptr{Cvoid}),
-                db, err, res, table, content_ptr)
+                (Ptr{Cvoid}, Ptr{Cstring}, Ptr{Ptr{Cvoid}}, Cstring, Ref{SrObject}),
+                db, err, res, table, content_ref)
     _free_object(content_obj)
     if ret < 0
         err_msg = err[] != C_NULL ? unsafe_string(err[]) : "unknown error"
@@ -762,10 +769,9 @@ function sr_upsert(db, resource::String, content)::Any
     res = Ref{Ptr{Cvoid}}(C_NULL)
     content_obj = content isa AbstractDict ? _dict_to_object(content) : _dict_to_object(Dict{String, Any}())
     content_ref = Ref(content_obj)
-    content_ptr = Ptr{Cvoid}(pointer_from_objref(content_ref))
     ret = ccall(_sym("sr_upsert"), Cint,
-                (Ptr{Cvoid}, Ptr{Cstring}, Ptr{Ptr{Cvoid}}, Cstring, Ptr{Cvoid}),
-                db, err, res, resource, content_ptr)
+                (Ptr{Cvoid}, Ptr{Cstring}, Ptr{Ptr{Cvoid}}, Cstring, Ref{SrObject}),
+                db, err, res, resource, content_ref)
     _free_object(content_obj)
     if ret < 0
         err_msg = err[] != C_NULL ? unsafe_string(err[]) : "unknown error"
@@ -787,10 +793,9 @@ function sr_merge(db, resource::String, content)::Any
     res = Ref{Ptr{Cvoid}}(C_NULL)
     content_obj = content isa AbstractDict ? _dict_to_object(content) : _dict_to_object(Dict{String, Any}())
     content_ref = Ref(content_obj)
-    content_ptr = Ptr{Cvoid}(pointer_from_objref(content_ref))
     ret = ccall(_sym("sr_merge"), Cint,
-                (Ptr{Cvoid}, Ptr{Cstring}, Ptr{Ptr{Cvoid}}, Cstring, Ptr{Cvoid}),
-                db, err, res, resource, content_ptr)
+                (Ptr{Cvoid}, Ptr{Cstring}, Ptr{Ptr{Cvoid}}, Cstring, Ref{SrObject}),
+                db, err, res, resource, content_ref)
     _free_object(content_obj)
     if ret < 0
         err_msg = err[] != C_NULL ? unsafe_string(err[]) : "unknown error"
@@ -884,15 +889,14 @@ function sr_relate(db, from::String, relation::String, to::String, content)::Any
     if content isa AbstractDict
         content_obj = _dict_to_object(content)
         content_ref = Ref(content_obj)
-        content_ptr = Ptr{Cvoid}(pointer_from_objref(content_ref))
-    else
-        content_ptr = Ptr{Cvoid}(C_NULL)
-    end
-    ret = ccall(_sym("sr_relate"), Cint,
-                (Ptr{Cvoid}, Ptr{Cstring}, Ptr{Ptr{Cvoid}}, Cstring, Cstring, Cstring, Ptr{Cvoid}),
-                db, err, res, from, relation, to, content_ptr)
-    if content_ptr != C_NULL
+        ret = ccall(_sym("sr_relate"), Cint,
+                    (Ptr{Cvoid}, Ptr{Cstring}, Ptr{Ptr{Cvoid}}, Cstring, Cstring, Cstring, Ref{SrObject}),
+                    db, err, res, from, relation, to, content_ref)
         _free_object(content_obj)
+    else
+        ret = ccall(_sym("sr_relate"), Cint,
+                    (Ptr{Cvoid}, Ptr{Cstring}, Ptr{Ptr{Cvoid}}, Cstring, Cstring, Cstring, Ptr{Cvoid}),
+                    db, err, res, from, relation, to, C_NULL)
     end
     if ret < 0
         err_msg = err[] != C_NULL ? unsafe_string(err[]) : "unknown error"
@@ -914,10 +918,9 @@ function sr_insert_relation(db, table::String, content)::Any
     res = Ref{Ptr{Cvoid}}(C_NULL)
     content_obj = content isa AbstractDict ? _dict_to_object(content) : _dict_to_object(Dict{String, Any}())
     content_ref = Ref(content_obj)
-    content_ptr = Ptr{Cvoid}(pointer_from_objref(content_ref))
     ret = ccall(_sym("sr_insert_relation"), Cint,
-                (Ptr{Cvoid}, Ptr{Cstring}, Ptr{Ptr{Cvoid}}, Cstring, Ptr{Cvoid}),
-                db, err, res, table, content_ptr)
+                (Ptr{Cvoid}, Ptr{Cstring}, Ptr{Ptr{Cvoid}}, Cstring, Ref{SrObject}),
+                db, err, res, table, content_ref)
     _free_object(content_obj)
     if ret < 0
         err_msg = err[] != C_NULL ? unsafe_string(err[]) : "unknown error"
@@ -955,7 +958,7 @@ function sr_stream_next(stream::Ptr{Cvoid})::Union{Dict,Nothing}
     # Allocate generously to tolerate any future stride increase the self-test
     # didn't catch; only the first 72 bytes are touched by the C side.
     buf = zeros(UInt8, 256)
-    ret = ccall(_sym("sr_stream_next"), Cint, (Ptr{Cvoid}, Ptr{Cvoid}), stream, pointer(buf))
+    ret = GC.@preserve buf ccall(_sym("sr_stream_next"), Cint, (Ptr{Cvoid}, Ptr{Cvoid}), stream, pointer(buf))
     # ret > 0: data available; 0 / SR_NONE: stream closed; <0: error
     if ret <= 0
         return nothing
