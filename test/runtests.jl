@@ -80,6 +80,9 @@ end
     _section("Types") do
         @testset "Types" begin include("sdk/test_types.jl") end
     end
+    _section("FFI struct layout") do
+        @testset "FFI struct layout" begin include("sdk/test_ffi_layout.jl") end
+    end
     _section("Public API surface") do
         @testset "Public API surface" begin include("sdk/test_api_surface.jl") end
     end
